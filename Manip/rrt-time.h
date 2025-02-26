@@ -112,12 +112,7 @@ struct Tree_nf: GLDrawer
       double out_dist_sqr{0};
       nanoflann::KNNResultSet<double> result_set(num_results);
       result_set.init(&q_near_idx, &out_dist_sqr);
-      
-      Eigen::Matrix<double, Eigen::Dynamic, 1> eigenVec(q.q.N);
-    for (int i = 0; i < q.q.N; i++) {
-        eigenVec(i) = q.q(i);
-    }
-      this->kd_tree.findNeighbors(result_set, eigenVec.data(), {0});
+      this->kd_tree.findNeighbors(result_set, q.coords.data(), {0});
       return array_of_vertices[q_near_idx];
   }
 
@@ -130,19 +125,14 @@ struct Tree_nf: GLDrawer
       this->array_of_vertices.push_back(q_new);
   
       size_t N{array_of_vertices.size() - 1};
-  
-      // this->array_of_vertices.back().ID_in_array = N;
-      this->kd_tree.addPoints(N, N);
+        this->kd_tree.addPoints(N, N);
   
       if (q_parent != nullptr)
       {
           q_parent->children.push_back(&(this->array_of_vertices.back()));
       }
   }
-    void delete_vertex(int vertex_id)
-    {
-      this->kd_tree.removePoint(vertex_id);
-  }
+    void delete_vertex(int vertex_id){   this->kd_tree.removePoint(vertex_id); }
 
     template <class BBOX>
     bool kdtree_get_bbox(BBOX & /* bb */) const { return false; } 
@@ -408,64 +398,16 @@ struct PathFinder_RRT_Time{
 
 
 struct PathFinder_SIRRT_Time{
+  // Ихний стафф
   TimedConfigurationProblem &TP;
-
-  Tree_nf *start_tree;
-  Tree_nf *goal_tree;
-  Tree_nf *current_tree;
-  Tree_nf *other_tree;
-  Vertex *root_node = nullptr;
-
-  double t_start;
-  double t_max;
-  int n_checks = 150;
-  double dt = (t_max - t_start) / n_checks;
-
-  std::vector<std::pair<double, double>> get_safe_intervals(const arr &q){
-    std::vector<std::pair<double, double>> safeIntervals;
-    bool isSafe = false;
-    double intervalStart = t_start;
-
-    for (double t = t_start; t <= t_max; t += dt) {
-        bool currentState = TP.query(q, t)->isFeasible;
-
-        if (currentState && !isSafe) {
-            intervalStart = t;
-            isSafe = true;
-        } else if (!currentState && isSafe) {
-            safeIntervals.push_back({intervalStart, t});
-            isSafe = false;
-        }
-    }
-    if (isSafe) {
-        safeIntervals.push_back({intervalStart, t_max});
-    }
-
-    return safeIntervals;
-  }
-
-  double vmax = .1;
-  double goal_bias = 0.4;
-
-
-  uint maxIter = 1000;
-  bool verbose = false;
-  bool disp = false;
-
-  double tol = 1e-3;
-  bool connect = true;
-  bool optimize = false;
-  uint conv_iter = 500;
-
-  std::vector<bool> periodicDimensions;
-
-  double edge_checking_time_us{0.};
-  double nn_time_us{0.};
 
   FrameL prePlannedFrames;
   uint tPrePlanned;
+  arr delta_buffer;
+  std::vector<bool> periodicDimensions;
 
   PathFinder_SIRRT_Time(TimedConfigurationProblem &_TP) :TP(_TP){
+    this->n_frames = std::ceil((t_max - t_start) / dt);
     delta_buffer = arr(TP.C.getJointState().N);
     periodicDimensions = std::vector<bool>(TP.C.getJointState().N, false);
 
@@ -475,6 +417,7 @@ struct PathFinder_SIRRT_Time{
       }
     }
   };
+
 
   arr projectToManifold(const arr &q, const double t){
     if (prePlannedFrames.N == 0){
@@ -495,57 +438,88 @@ struct PathFinder_SIRRT_Time{
     return qNew * 1.;
   };
 
-  TimedPath plan(const arr &q0, const double t0, const arr &qT, double tGoalLowerBound=0, double tGoalUpperBound=-1);
-  TimedPath plan(const arr &q0, const double t0, const TimedGoalSampler gs, double tGoalLowerBound=0, double tGoalUpperBound=-1);
+  bool verbose = false;
+  bool disp = false;
 
-  Vertex *get_nearest_node(const VertexCoordType &coords);
-  std::vector<std::pair<Vertex *, int>> get_nearest_node_by_radius(VertexCoordType &coords, double raduis, Tree_nf *tree);
+  // Наш стафф
+  Tree_nf *start_tree;
+  Tree_nf *goal_tree;
+  Tree_nf *current_tree;
+  Tree_nf *other_tree;
+  Vertex *root_node = nullptr;
 
-  arr delta_buffer;
-  double q_metric(const arr& d) const;
-  double distance(const Vertex &n1, const Vertex &n2);
+  int n_frames;
+  int dimensionality;
 
-  Vertex* extend(Tree* tree, const Vertex &goal, const bool connect = false);
+  double t_start;
+  double t_max;
+  double dt = 1.0/15.0; // HARDCODE!, fps analog
 
-  arr getDelta(const arr &p1, const arr &p2);
-  Vertex* steer(const Vertex &start, const Vertex &goal, bool reverse);
+  std::vector<std::pair<int, int>> get_safe_intervals(const arr &q);
 
-  TimedPath extractPath(Tree* t1, Tree* t2, Vertex* leafNode1, Vertex* leafNode2){
+  double vmax = .1;
+  double goal_bias = 0.4;
+  double planner_range = 1.0;
 
-    std::vector<Vertex*> np;
-    {
-      Vertex* n = leafNode1;
-      while(!!n->parent){
-        np.push_back(n);
-        n = n->parent;
-      }
-      np.push_back(n);
 
-      std::reverse(np.begin(), np.end());
-    }
-
-    {
-      Vertex* n = leafNode2;
-      while(n->parent){
-        np.push_back(n);
-        n = n->parent;
-      }
-      np.push_back(n);
-    }
-
-    if (t1->reverse){
-      std::reverse(np.begin(), np.end());
-    }
-
-    arr path;
-    arr time;
-
-    path.resize(0, leafNode1->q.N);
-    for (Vertex* n: np){
-      time.append(n->arrival_time);
-      path.append(n->q);
-    }
-
-    return TimedPath(path, time);
+  bool is_collision_motion(const arr &start_coords, const arr &end_coords, double &start_time, double &end_time)
+  {
+    return TP.checkEdge(start_coords, start_time, end_coords, end_time, 20);
   }
+  bool is_collision_state(const arr &q, int &time) { return TP.query(q, time * dt)->isFeasible; }
+
+  bool goal_reached = false;
+  Vertex * finish_node;
+  
+  VertexCoordType goal_coords;
+
+  Vertex *get_nearest_node(const VertexCoordType &coords)
+  {
+    const size_t num_results = 1;
+    size_t ret_index;
+    double out_dist_sqr;
+    // nanoflann::SearchParams search_params;
+    nanoflann::KNNResultSet<double> resultSet(num_results);
+    resultSet.init(&ret_index, &out_dist_sqr);
+    this->current_tree->kd_tree.findNeighbors(resultSet, coords.data(), {0});
+    return &(this->current_tree->array_of_vertices[ret_index]);
+  }
+
+  std::vector<std::pair<Vertex *, int>> get_nearest_node_by_radius(VertexCoordType &coords, double raduis, Tree_nf *tree)
+  {
+    std::vector<std::pair<Vertex *, int>> result;
+    std::vector<std::pair<size_t, double>> indices_dists;
+    nanoflann::RadiusResultSet<double, size_t> resultSet(raduis, indices_dists);
+
+    tree->kd_tree.findNeighbors(resultSet, coords.data(), {0});
+
+    result.reserve(resultSet.m_indices_dists.size());
+    for (auto node_ind_dist_pair : resultSet.m_indices_dists)
+    {
+        result.emplace_back(&(tree->array_of_vertices[node_ind_dist_pair.first]), node_ind_dist_pair.first);
+    }
+    return result;
+  }
+
+  bool extend(VertexCoordType &coords_of_new);
+
+  std::vector<Vertex *> set_parent(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
+
+  
+  std::pair<Vertex *, Vertex *> goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
+  bool connect_trees(VertexCoordType& coord_rand, std::vector<std::pair<int, int>>& safe_intervals_of_coord_rand,std::vector<Vertex* > new_nodes);
+  void swap_trees();
+  std::vector<Vertex*> grow_tree(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
+  bool connect_trees(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand, std::vector<Vertex *> another_tree_new_nodes);
+  void prune_goal_tree();
+
+  bool check_planner_termination_condition() const;
+  bool stop_when_path_found = true;
+  std::chrono::time_point<std::chrono::steady_clock> solver_start_time;
+  float max_planning_time = 180;
+
+  //Финальное творение
+  TimedPath plan(const arr &q0, const double t0, const arr &q_goal);
+  // TimedPath plan(const arr &q0, const double t0, const TimedGoalSampler gs, double tGoalLowerBound=0, double tGoalUpperBound=-1);
+
 };
