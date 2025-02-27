@@ -43,7 +43,7 @@ struct Node{
   }
 };
 
-typedef Eigen::Matrix<double, 6, 1> VertexCoordType;
+typedef Eigen::Matrix<double, 7, 1> VertexCoordType;
 
 struct Vertex{
   arr q;
@@ -88,7 +88,7 @@ struct Vertex{
 
 struct Tree_nf;
 
-#define TREE_DIMENSIONALITY 6
+#define TREE_DIMENSIONALITY 7
 typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<nanoflann::L2_Simple_Adaptor<double, Tree_nf>, Tree_nf, TREE_DIMENSIONALITY> KdTree;
 
 struct Tree_nf: GLDrawer
@@ -107,6 +107,9 @@ struct Tree_nf: GLDrawer
 
     std::vector<Vertex> array_of_vertices;
     KdTree kd_tree;
+
+    void glDraw(OpenGL &gl){
+    }
 
     Vertex &getNearestState(const Vertex q){
       const size_t num_results{1};
@@ -449,36 +452,19 @@ struct PathFinder_SIRRT_Time{
   bool disp = false;
 
   // Наш стафф
-  Tree_nf *start_tree;
-  Tree_nf *goal_tree;
-  Tree_nf *current_tree;
-  Tree_nf *other_tree;
-  Vertex *root_node = nullptr;
 
-  int n_frames;
-  int dimensionality;
-
-  double t_start;
-  double t_max;
-  double dt = 1.0/15.0; // HARDCODE!, fps analog
-
+  // Методы
   std::vector<std::pair<int, int>> get_safe_intervals(const arr &q);
 
-  double vmax = .1;
-  double goal_bias = 0.4;
-  double planner_range = 1.0;
-
+  arr getDelta(const arr &p1, const arr &p2);
+  double q_metric(const arr& d) const;
 
   bool is_collision_motion(const arr &start_coords, const arr &end_coords, double &start_time, double &end_time)
   {
     return TP.checkEdge(start_coords, start_time, end_coords, end_time, 20);
   }
-  bool is_collision_state(const arr &q, int &time) { return TP.query(q, time * dt)->isFeasible; }
+  bool is_collision_state(const arr &q, int &time) { return TP.query(q, time * dt)->isFeasible; } //time = frame number here
 
-  bool goal_reached = false;
-  Vertex * finish_node;
-  
-  VertexCoordType goal_coords;
 
   Vertex *get_nearest_node(const VertexCoordType &coords)
   {
@@ -512,20 +498,46 @@ struct PathFinder_SIRRT_Time{
 
   std::vector<Vertex *> set_parent(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
 
-  
-  std::pair<Vertex *, Vertex *> goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
   bool connect_trees(VertexCoordType& coord_rand, std::vector<std::pair<int, int>>& safe_intervals_of_coord_rand,std::vector<Vertex* > new_nodes);
   void swap_trees();
   std::vector<Vertex*> grow_tree(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
   void prune_goal_tree();
 
   bool check_planner_termination_condition() const;
-  bool stop_when_path_found = true;
-  std::chrono::time_point<std::chrono::steady_clock> solver_start_time;
+
+
+  //==================================================================
+
+  // Постоянные для каждого плана 
+  int dimensionality;
+  double dt = 1.0/20.0; // HARDCODE!, fps analog
+  double vmax = .1;
+  double goal_bias = 0.4;
+  double planner_range = 1.0;
+
+  bool stop_when_path_found = true;  
   float max_planning_time = 180;
 
+  //==============================================================
+  // На каждом плане свои
+  Tree_nf *start_tree;
+  Tree_nf *goal_tree;
+  Tree_nf *current_tree;
+  Tree_nf *other_tree;
+  Vertex *root_node = nullptr;
+
+  int n_frames;  
+  double t_start;
+  double t_max;    
+
+  bool goal_reached = false;
+  Vertex * finish_node;
+  
+  VertexCoordType goal_coords;
+  std::vector<std::pair<int, int>> goal_safe_intervals;
+  
+  std::pair<Vertex *, Vertex *> goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
+  std::chrono::time_point<std::chrono::steady_clock> solver_start_time;
   //Финальное творение
   TimedPath plan(const arr &q0, const double &t0, const arr &q_goal, const double &t_up);
-  // TimedPath plan(const arr &q0, const double t0, const TimedGoalSampler gs, double tGoalLowerBound=0, double tGoalUpperBound=-1);
-
 };
