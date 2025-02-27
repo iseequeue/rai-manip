@@ -86,6 +86,8 @@ struct Vertex{
   }
 };
 
+struct Tree_nf;
+
 #define TREE_DIMENSIONALITY 6
 typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<nanoflann::L2_Simple_Adaptor<double, Tree_nf>, Tree_nf, TREE_DIMENSIONALITY> KdTree;
 
@@ -139,6 +141,8 @@ struct Tree_nf: GLDrawer
     inline size_t kdtree_get_point_count() const { return array_of_vertices.size(); }
     inline double kdtree_get_pt(const size_t idx, const size_t dim) const { return array_of_vertices[idx].q(dim); }  // у них индексация через круглые скобки
 };
+
+
 
 
 struct Tree: GLDrawer {
@@ -438,6 +442,9 @@ struct PathFinder_SIRRT_Time{
     return qNew * 1.;
   };
 
+  double edge_checking_time_us{0.};
+  double nn_time_us{0.};
+
   bool verbose = false;
   bool disp = false;
 
@@ -510,7 +517,6 @@ struct PathFinder_SIRRT_Time{
   bool connect_trees(VertexCoordType& coord_rand, std::vector<std::pair<int, int>>& safe_intervals_of_coord_rand,std::vector<Vertex* > new_nodes);
   void swap_trees();
   std::vector<Vertex*> grow_tree(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
-  bool connect_trees(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand, std::vector<Vertex *> another_tree_new_nodes);
   void prune_goal_tree();
 
   bool check_planner_termination_condition() const;
@@ -519,7 +525,7 @@ struct PathFinder_SIRRT_Time{
   float max_planning_time = 180;
 
   //Финальное творение
-  TimedPath plan(const arr &q0, const double t0, const arr &q_goal);
+  TimedPath plan(const arr &q0, const double &t0, const arr &q_goal, const double &t_up);
   // TimedPath plan(const arr &q0, const double t0, const TimedGoalSampler gs, double tGoalLowerBound=0, double tGoalUpperBound=-1);
 
 };

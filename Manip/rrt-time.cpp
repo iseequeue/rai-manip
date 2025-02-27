@@ -1200,10 +1200,12 @@ bool PathFinder_SIRRT_Time::check_planner_termination_condition() const
     return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - this->solver_start_time).count() < this->max_planning_time;
 }
 
-TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double t0, const arr &q_goal){
+TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr &q_goal, const double &t_up){
     const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 
   
     //auto start_rrt_time = std::chrono::high_resolution_clock::now();
+    this->t_max = t_up;
+    this->t_start = t0;
   
     if (!TP.query(q0, t0, 0)->isFeasible){
       spdlog::error("Initial point not feasible");
