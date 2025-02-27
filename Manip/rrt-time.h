@@ -47,9 +47,10 @@ typedef Eigen::Matrix<double, 7, 1> VertexCoordType;
 
 struct Vertex{
   arr q;
+  // arr x;
   
   VertexCoordType coords; 
-  std::pair<double, double> safe_interval;
+  std::pair<int, int> safe_interval;
   double cost = -1;
 
   Vertex *parent = nullptr;
@@ -60,7 +61,7 @@ struct Vertex{
   double departure_from_parent_time = -1;
   int tree_id = -1;
 
-  Vertex(arr _q, const std::pair<double, double> &_safe_interval): 
+  Vertex(arr _q, const std::pair<int, int> &_safe_interval): 
   q(_q), safe_interval(_safe_interval) {
     for (int i = 0; i < q.N; i++) {
       coords(i) = q(i);
@@ -144,8 +145,6 @@ struct Tree_nf: GLDrawer
     inline size_t kdtree_get_point_count() const { return array_of_vertices.size(); }
     inline double kdtree_get_pt(const size_t idx, const size_t dim) const { return array_of_vertices[idx].q(dim); }  // у них индексация через круглые скобки
 };
-
-
 
 
 struct Tree: GLDrawer {
@@ -509,14 +508,14 @@ struct PathFinder_SIRRT_Time{
   //==================================================================
 
   // Постоянные для каждого плана 
-  int dimensionality;
+  int dimensionality = 7;
   double dt = 1.0/20.0; // HARDCODE!, fps analog
-  double vmax = .1;
+  double vmax = .7;
   double goal_bias = 0.4;
   double planner_range = 1.0;
 
   bool stop_when_path_found = true;  
-  float max_planning_time = 180;
+  float max_planning_time = 5;
 
   //==============================================================
   // На каждом плане свои
