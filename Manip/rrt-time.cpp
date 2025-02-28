@@ -852,7 +852,7 @@ TimedPath PathFinder_RRT_Time::plan(const arr &q0, const double t0, const arr &q
 
 std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const arr &q) {
   std::vector<std::pair<int, int>> safeIntervals;
-  std::cout << "start si\n";
+  // std::cout << "start si\n";
   bool isSafe = false;
   int intervalStartFrame = 0;
   
@@ -878,7 +878,7 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const
   //   std::cout << safeIntervals[i].first << ' ' << safeIntervals[i].second << ' ' << n_frames << ',';
   // }
   // std::cout << std::endl;
-  std::cout << "finish si\n";
+  // std::cout << "finish si\n";
   return safeIntervals;
 }
 
@@ -931,7 +931,7 @@ double PathFinder_SIRRT_Time::q_metric(const arr& d) const{
 
 bool PathFinder_SIRRT_Time::extend(VertexCoordType &coords_of_new)
 {
-  std::cout << "start extend\n";
+  // std::cout << "start extend\n";
   Vertex *q_nearest = this->get_nearest_node(coords_of_new); 
   VertexCoordType delta_vector = coords_of_new - q_nearest->coords;
   double delta = delta_vector.norm();
@@ -939,23 +939,26 @@ bool PathFinder_SIRRT_Time::extend(VertexCoordType &coords_of_new)
 
   if (delta < this->planner_range) { return true; }
   coords_of_new = q_nearest->coords + delta_vector.normalized() * this->planner_range;
-  std::cout << "finish extend\n";
+  // std::cout << "finish extend\n";
   return true;
 }
 
 std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand)
 {   
-  std::cout << "start eset parent\n";
     std::vector<std::pair<Vertex *, int>> nearest_nodes = this->get_nearest_node_by_radius(coord_rand, 9 * this->planner_range * this->planner_range, (this->current_tree));
     std::vector<Vertex *> added_vertices;
     int safe_interval_ind = 0;
     if (this->current_tree == this->start_tree)
     {
         double time_to_goal = (coord_rand - this->goal_coords).norm() / this->dt / this->vmax; //changed fps here
+        // std::cout << time_to_goal << std::endl;
         std::sort(nearest_nodes.begin(), nearest_nodes.end(), [](const std::pair<Vertex *, int> &a, std::pair<Vertex *, int> &b)
                   { return a.first->arrival_time < b.first->arrival_time; });
+        int interval_cnt=0;
         for (std::pair<int, int> safe_int : safe_intervals_of_coord_rand) // For each interval
         {
+          interval_cnt++;
+          // std::cout << "interval " << interval_cnt << std::endl;
             // if we can't reach goal from that interval - skip
             if ((safe_int.first + time_to_goal) >= this->n_frames)
             {
@@ -965,10 +968,14 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
             bool found_parent = false;
 
             // for each parent
+            int vertex_cnt = 0;
+          
             for (std::pair<Vertex *, int> candidate_node : nearest_nodes)
             {
+              vertex_cnt++;
+              // std::cout << "vertex " << vertex_cnt << std::endl;
 
-                double time_to_node = (coord_rand - candidate_node.first->coords).norm() * (1.0 / this->dt) / this->vmax;
+                double time_to_node = (coord_rand - candidate_node.first->coords).norm() / this->dt / this->vmax;
 
                 // candidate nodes are sorted by ascending arrival time. If arrival time > safe int bound + time to node - > break;
                 if (candidate_node.first->arrival_time + time_to_node > safe_int.second)
@@ -985,6 +992,7 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                 VertexCoordType start_coords = candidate_node.first->coords;
 
                 // for each departure time
+                // std::cout << std::max(candidate_node.first->arrival_time, (double)safe_int.first - time_to_node) << ' ' << std::min((double)candidate_node.first->safe_interval.second, (double)safe_int.second - time_to_node)  << std::endl;
                 for (double departure_time = std::max(candidate_node.first->arrival_time, (double)safe_int.first - time_to_node); departure_time <= std::min((double)candidate_node.first->safe_interval.second, (double)safe_int.second - time_to_node); departure_time += 1)
                 {
                     double arrival_time = departure_time + time_to_node;
@@ -1001,10 +1009,16 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                     }
                     arr start_coords_q({start_coords[0], start_coords[1], start_coords[2], start_coords[3], start_coords[4], start_coords[5], start_coords[6]});
                     arr coord_rand_q({coord_rand[0], coord_rand[1], coord_rand[2], coord_rand[3], coord_rand[4], coord_rand[5], coord_rand[6]});
-                    if (!is_collision_motion(start_coords_q, coord_rand_q, departure_time, arrival_time))
+                    // std::cout << "collision begin\n";
+                    double lv = departure_time*(this->dt);
+                    double lvv = arrival_time*(this->dt);
+                    if (!is_collision_motion(start_coords_q, coord_rand_q, lv, lvv))
                     {
+                      // std::cout << "collision end\n";
+                      // std::cout << "vertex insert begin\n";
                         this->current_tree->add_vertex(Vertex(coord_rand_q, safe_intervals_of_coord_rand[safe_interval_ind]), candidate_node.first, departure_time, arrival_time);
                         added_vertices.push_back(&(this->current_tree->array_of_vertices.back()));
+                        // std::cout << "vertex insert\n";
                         found_parent = true;
                         break;
                     }
@@ -1021,11 +1035,15 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
     
     else if (this->current_tree == this->goal_tree)
     {
+        // std::cout << "goal tree\n";
         double time_to_start = (coord_rand - this->root_node->coords).norm() * (1.0/dt) / this->vmax;
         std::sort(nearest_nodes.begin(), nearest_nodes.end(), [](const std::pair<Vertex *, int> &a, std::pair<Vertex *, int> &b)
                   { return a.first->arrival_time > b.first->arrival_time; });
+        int interval_cnt1 = 0;
         for (std::pair<int, int> safe_int : safe_intervals_of_coord_rand) // For each interval
         {
+          interval_cnt1++;
+          // std::cout << "else interval " << interval_cnt1 << std::endl;
             // if we can't reach start from that interval - skip
             if ((safe_int.second - time_to_start) < 0)
             {
@@ -1035,10 +1053,13 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
             bool found_parent = false;
 
             // for each parent
+            // int near_node_cnt=0;
             for (std::pair<Vertex *, int> candidate_node : nearest_nodes)
             {
+              // near_node_cnt++;
+              // std::cout << "near_node_cnt " << near_node_cnt << std::endl;
 
-                double time_to_node = (coord_rand - candidate_node.first->coords).norm() * (1.0/dt) / this->vmax;
+                double time_to_node = (coord_rand - candidate_node.first->coords).norm() / this->dt / this->vmax;
 
                 // candidate nodes are sorted by descending arrival time. If arrival time of parent < safe int bound + time to node - > break;
                 if (candidate_node.first->arrival_time - time_to_node < safe_int.first)
@@ -1056,6 +1077,7 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                 VertexCoordType start_coords = candidate_node.first->coords;
 
                 // for each departure time
+                // std::cout << std::min(candidate_node.first->arrival_time, (double)safe_int.second + time_to_node) << ' ' << std::max((double)candidate_node.first->safe_interval.first, (double)safe_int.first + time_to_node) << std::endl;
                 for (double departure_time = std::min(candidate_node.first->arrival_time, (double)safe_int.second + time_to_node); departure_time >= std::max((double)candidate_node.first->safe_interval.first, (double)safe_int.first + time_to_node); departure_time -= 1)
                 {
                     // assert(!is_collision_motion(candidate_node.first->coords, candidate_node.first->coords, candidate_node.first->arrival_time, departure_time));
@@ -1079,7 +1101,10 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                     //   start_coords_q(i) = start_coords(i);
                     //   coord_rand_q(i) = coord_rand(i);
                     // }
-                    if (!is_collision_motion(coord_rand_q, start_coords_q, arrival_time, departure_time))
+                    double lv = arrival_time*this->dt;
+                    double lvv = departure_time*this->dt;
+
+                    if (!is_collision_motion(coord_rand_q, start_coords_q, lv, lvv))
                     {
                         this->current_tree->add_vertex(Vertex(coord_rand_q, safe_intervals_of_coord_rand[safe_interval_ind]), candidate_node.first, departure_time, arrival_time);
                         added_vertices.push_back(&(this->current_tree->array_of_vertices.back()));
@@ -1095,7 +1120,6 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
             safe_interval_ind++;
         }
     }
-    std::cout << "end set parent\n";
     return added_vertices;
 }
 
@@ -1227,7 +1251,9 @@ void PathFinder_SIRRT_Time::prune_goal_tree()
             
             // assert(!is_collision_motion(start_coords, start_coords, start_tree_node->arrival_time, departure_time));
             double arrival_time = departure_time + time_to_node;
-            if (!is_collision_motion(start_coords, goal_tree_node->q, departure_time, arrival_time))
+            double lv = departure_time*this->dt;
+            double lvv = arrival_time*this->dt;
+            if (!is_collision_motion(start_coords, goal_tree_node->q, lv, lvv))
             {
                 this->start_tree->add_vertex(Vertex(goal_tree_node->q, goal_tree_node->safe_interval), start_tree_node, departure_time, arrival_time);
                 start_tree_node = &(this->start_tree->array_of_vertices.back());
@@ -1263,14 +1289,14 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     this->t_max = t_up;
     this->n_frames = std::floor((t_up - t0) / dt);
     this->goal_reached = false;
-    this->max_planning_time = 10.;
+    this->max_planning_time = 100.;
     goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
 
     this->start_tree = new Tree_nf("start_tree", 0);
     this->goal_tree = new  Tree_nf("goal_tree", 1);
 
-    this->start_tree->array_of_vertices.reserve(1000000);  // TODO: decide to leave it or remove it
-    this->goal_tree->array_of_vertices.reserve(1000000);   // TODO: decide to leave it or remove it
+    // this->start_tree->array_of_vertices.reserve(1000000);  // TODO: decide to leave it or remove it
+    // this->goal_tree->array_of_vertices.reserve(1000000);   // TODO: decide to leave it or remove it
 
     std::vector<std::pair<int, int>> start_safe_intervals = this->get_safe_intervals(q0);
 
@@ -1337,12 +1363,15 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     // int max_goal_time 0;
     //max_goal_time = std::max({max_goal_time, t});
     int v_count = 0;
+    std::cout << q0 << std::endl;
+    std::cout << q_goal << std::endl;
     while (this->check_planner_termination_condition() && !this->goal_reached)
     {
         v_count++;
-        std::cout<< v_count << std::endl;
+        if (v_count % 100 == 0) std::cout<< v_count << std::endl;
         VertexCoordType coord_rand;
         arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
+        std::cout << qs << std::endl;
         // std::cout << "Размерность   " << this->dimensionality << ' ' << qs.N << ' ' << qs(0) << std::endl;
         // std::cout << qs(0) << ' ' << qs(1) << ' '<< qs(2) << ' '<< qs(3) << ' '<< qs(4) << ' '<< qs(5) << ' '<< qs(6) << ' '<< std::endl;
         for (int i = 0; i < this->dimensionality; i++) {

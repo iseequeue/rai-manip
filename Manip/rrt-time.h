@@ -460,7 +460,7 @@ struct PathFinder_SIRRT_Time{
 
   bool is_collision_motion(const arr &start_coords, const arr &end_coords, double &start_time, double &end_time)
   {
-    return TP.checkEdge(start_coords, start_time, end_coords, end_time, 20);
+    return TP.checkEdge(start_coords, start_time, end_coords, end_time, 3);
   }
   bool is_collision_state(const arr &q, int &time) { return TP.query(q, time * dt)->isFeasible; } //time = frame number here
 
