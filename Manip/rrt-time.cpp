@@ -950,6 +950,7 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
     int safe_interval_ind = 0;
     if (this->current_tree == this->start_tree)
     {
+      std::cout << "start tree\n";
         double time_to_goal = (coord_rand - this->goal_coords).norm() / this->dt / this->vmax; //changed fps here
         // std::cout << time_to_goal << std::endl;
         std::sort(nearest_nodes.begin(), nearest_nodes.end(), [](const std::pair<Vertex *, int> &a, std::pair<Vertex *, int> &b)
@@ -1035,7 +1036,7 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
     
     else if (this->current_tree == this->goal_tree)
     {
-        // std::cout << "goal tree\n";
+        std::cout << "goal tree\n";
         double time_to_start = (coord_rand - this->root_node->coords).norm() * (1.0/dt) / this->vmax;
         std::sort(nearest_nodes.begin(), nearest_nodes.end(), [](const std::pair<Vertex *, int> &a, std::pair<Vertex *, int> &b)
                   { return a.first->arrival_time > b.first->arrival_time; });
@@ -1365,15 +1366,16 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     int v_count = 0;
     std::cout << q0 << std::endl;
     std::cout << q_goal << std::endl;
+    const double min_l = q_metric(getDelta(q_goal, q0));
     while (this->check_planner_termination_condition() && !this->goal_reached)
     {
+        
         v_count++;
-        if (v_count % 100 == 0) std::cout<< v_count << std::endl;
+        if (v_count % 1 == 0) std::cout<< v_count << std::endl;
         VertexCoordType coord_rand;
-        arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
+        arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
+        // arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
         std::cout << qs << std::endl;
-        // std::cout << "Размерность   " << this->dimensionality << ' ' << qs.N << ' ' << qs(0) << std::endl;
-        // std::cout << qs(0) << ' ' << qs(1) << ' '<< qs(2) << ' '<< qs(3) << ' '<< qs(4) << ' '<< qs(5) << ' '<< qs(6) << ' '<< std::endl;
         for (int i = 0; i < this->dimensionality; i++) {
           coord_rand(i) = qs(i);
         }
@@ -1404,6 +1406,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     }
 
     // spdlog::info("МЫ ЗДЕСЬ 1");
+    if (this->goal_reached) std::cout << "МЫ БЛЯТЬ НАШЛИ РЕШЕНИЕ, МЫ НАШЛИ ЕГО МАТЬ ВАШУ\n";
 
     if (!this->goal_reached) {delete this->start_tree; delete this->goal_tree; return TimedPath({}, {});}
     else
