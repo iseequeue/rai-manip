@@ -43,7 +43,7 @@ struct Node{
   }
 };
 
-typedef Eigen::Matrix<double, 7, 1> VertexCoordType;
+typedef Eigen::Matrix<double, 6, 1> VertexCoordType;
 
 struct Vertex{
   arr q;
@@ -89,7 +89,7 @@ struct Vertex{
 
 struct Tree_nf;
 
-#define TREE_DIMENSIONALITY 7
+#define TREE_DIMENSIONALITY 6
 typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<nanoflann::L2_Simple_Adaptor<double, Tree_nf>, Tree_nf, TREE_DIMENSIONALITY> KdTree;
 
 struct Tree_nf: GLDrawer
@@ -413,7 +413,6 @@ struct PathFinder_SIRRT_Time{
   std::vector<bool> periodicDimensions;
 
   PathFinder_SIRRT_Time(TimedConfigurationProblem &_TP) :TP(_TP){
-    this->n_frames = std::ceil((t_max - t_start) / dt);
     delta_buffer = arr(TP.C.getJointState().N);
     periodicDimensions = std::vector<bool>(TP.C.getJointState().N, false);
 
@@ -508,7 +507,7 @@ struct PathFinder_SIRRT_Time{
   //==================================================================
 
   // Постоянные для каждого плана 
-  int dimensionality = 7;
+  int dimensionality = 6;
   double dt = 1.0/20.0; // HARDCODE!, fps analog
   double vmax = .7;
   double goal_bias = 0.4;
