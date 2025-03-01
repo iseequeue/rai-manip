@@ -761,9 +761,9 @@ bool TimedConfigurationProblem::checkEdge(const arr& x0, const double t0, const 
   const double tMin = (t0 < t1) ? t0: t1;
 
   // #pragma omp parallel for
-  for(uint i=0; i<samples; ++i){
-    const double interp = corput(i);
-    //const double interp = 1. * (i+1) / (samples+1);
+  for(uint i=0; i<=samples; ++i){
+    // const double interp = corput(i);
+    const double interp = 1. * (i) / (samples);
     const arr x = x0 + interp * (x1-x0);
     double t = t0 + interp * (t1 - t0);
 

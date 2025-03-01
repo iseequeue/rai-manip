@@ -1294,7 +1294,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     this->t_max = t_up;
     this->n_frames = std::ceil((t_up - t0) / dt);
     this->goal_reached = false;
-    this->max_planning_time = 100.;
+    this->max_planning_time = 100000;
     goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
 
     this->start_tree = new Tree_nf("start_tree", 0);
@@ -1374,7 +1374,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     while (this->check_planner_termination_condition() && !this->goal_reached)
     {        
         v_count++;
-        if (v_count % 1 == 0) std::cout<< v_count << std::endl;
+        std::cout<< v_count << " " <<this->start_tree->array_of_vertices.size()<< " " << this->goal_tree->array_of_vertices.size() << " "<<  std::endl;
         VertexCoordType coord_rand;
         arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
         // arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
