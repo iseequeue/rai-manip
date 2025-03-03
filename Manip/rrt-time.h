@@ -43,7 +43,7 @@ struct Node{
   }
 };
 
-typedef Eigen::Matrix<double, 6, 1> VertexCoordType;
+typedef Eigen::Matrix<double, 7, 1> VertexCoordType;   //PYH
 
 struct Vertex{
   arr q;
@@ -89,14 +89,14 @@ struct Vertex{
 
 struct Tree_nf;
 
-#define TREE_DIMENSIONALITY 6
+#define TREE_DIMENSIONALITY 7  //PYH
 typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<nanoflann::L2_Simple_Adaptor<double, Tree_nf>, Tree_nf, TREE_DIMENSIONALITY> KdTree;
 
 struct Tree_nf: GLDrawer
 {
     Tree_nf(): tree_name(""), tree_idx(-1), kd_tree(TREE_DIMENSIONALITY, *this, nanoflann::KDTreeSingleIndexAdaptorParams(25)) {};;
     Tree_nf(const std::string &tree_name_, size_t tree_idx_) : tree_name(tree_name_), tree_idx(tree_idx_),
-    kd_tree(6, *this, nanoflann::KDTreeSingleIndexAdaptorParams(25)) {};;
+    kd_tree(7, *this, nanoflann::KDTreeSingleIndexAdaptorParams(25)) {};; //PYH
     ~Tree_nf(){};                                     // destructor
     Tree_nf(const Tree_nf &other) = delete;            // copy constructor
     Tree_nf(Tree_nf &&other) = default;                // move constructor
@@ -459,9 +459,9 @@ struct PathFinder_SIRRT_Time{
 
   bool is_collision_motion(const arr &start_coords, const arr &end_coords, double &start_time, double &end_time)
   {
-    return !TP.checkEdge(start_coords, start_time, end_coords, end_time, 20);
+    return false; //!TP.checkEdge(start_coords, start_time, end_coords, end_time, 20);
   }
-  bool is_collision_state(const arr &q, int &time) { return TP.query(q, time * dt)->isFeasible; } //time = frame number here
+  bool is_collision_state(const arr &q, int &time) { return !TP.query(q, time * dt)->isFeasible; } //time = frame number here
 
 
   Vertex *get_nearest_node(const VertexCoordType &coords)
@@ -509,11 +509,11 @@ struct PathFinder_SIRRT_Time{
   //==================================================================
 
   // Постоянные для каждого плана 
-  int dimensionality = 6;
+  int dimensionality = 7;
   double dt = 1.0/20.0; // HARDCODE!, fps analog
   double vmax = 3.1415;
   double goal_bias = 0.4;
-  double planner_range = 0.1;
+  double planner_range = 1.0;
 
   bool stop_when_path_found = true;  
   float max_planning_time = 1000;

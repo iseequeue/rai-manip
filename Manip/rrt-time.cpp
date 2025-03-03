@@ -1008,8 +1008,8 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                         departure_time += safe_intervals_of_coord_rand[safe_interval_ind].first - arrival_time;
                         arrival_time += safe_intervals_of_coord_rand[safe_interval_ind].first - arrival_time;
                     }
-                    arr start_coords_q({start_coords[0], start_coords[1], start_coords[2], start_coords[3], start_coords[4], start_coords[5]});
-                    arr coord_rand_q({coord_rand[0], coord_rand[1], coord_rand[2], coord_rand[3], coord_rand[4], coord_rand[5]});
+                    arr start_coords_q({start_coords[0], start_coords[1], start_coords[2], start_coords[3], start_coords[4], start_coords[5], start_coords[6]});
+                    arr coord_rand_q({coord_rand[0], coord_rand[1], coord_rand[2], coord_rand[3], coord_rand[4], coord_rand[5], coord_rand[6]});
                     // std::cout << "collision begin\n";
                     double lv = departure_time*(this->dt);
                     double lvv = arrival_time*(this->dt);
@@ -1097,8 +1097,8 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                         departure_time += safe_intervals_of_coord_rand[safe_interval_ind].first - arrival_time;
                         arrival_time += safe_intervals_of_coord_rand[safe_interval_ind].first - arrival_time;
                     }
-                    arr start_coords_q({start_coords[0], start_coords[1], start_coords[2], start_coords[3], start_coords[4], start_coords[5]});
-                    arr coord_rand_q({coord_rand[0], coord_rand[1], coord_rand[2], coord_rand[3], coord_rand[4], coord_rand[5]});
+                    arr start_coords_q({start_coords[0], start_coords[1], start_coords[2], start_coords[3], start_coords[4], start_coords[5], start_coords[6]});
+                    arr coord_rand_q({coord_rand[0], coord_rand[1], coord_rand[2], coord_rand[3], coord_rand[4], coord_rand[5], coord_rand[6]});
 
                     // for (int i = 0; i < this->dimensionality; i++) {
                     //   std::cout << i << ' ' << start_coords(i) << ' ' << coord_rand(i) << std::endl;
@@ -1170,7 +1170,7 @@ bool PathFinder_SIRRT_Time::connect_trees(VertexCoordType &coord_rand, std::vect
         }
 
         std::vector<double> robot_angles(coord_rand.data(), coord_rand.data() + coord_rand.rows() * coord_rand.cols());
-        arr robot_q({coord_rand(0), coord_rand(1), coord_rand(2), coord_rand(3), coord_rand(4), coord_rand(5)});
+        arr robot_q({coord_rand(0), coord_rand(1), coord_rand(2), coord_rand(3), coord_rand(4), coord_rand(5), coord_rand(6)});
         // for (int i = 0; i < this->dimensionality; i++) {
         //   robot_q(i) = coord_rand(i);
         // }
@@ -1376,6 +1376,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
         v_count++;
         std::cout<< v_count << " " <<this->start_tree->array_of_vertices.size()<< " " << this->goal_tree->array_of_vertices.size() << " "<<  std::endl;
         VertexCoordType coord_rand;
+  
         arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
         // arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
         std::cout << qs << std::endl;
@@ -1409,7 +1410,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     }
 
     // spdlog::info("МЫ ЗДЕСЬ 1");
-    if (this->goal_reached) std::cout << "МЫ БЛЯТЬ НАШЛИ РЕШЕНИЕ, МЫ НАШЛИ ЕГО МАТЬ ВАШУ\n";
+    if (this->goal_reached) std::cout << "МЫ НАШЛИ РЕШЕНИЕ, МЫ НАШЛИ ЕГО\n";
 
     if (!this->goal_reached) {delete this->start_tree; delete this->goal_tree; return TimedPath({}, {});}
     else
