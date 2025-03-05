@@ -61,12 +61,25 @@ struct Vertex{
   double departure_from_parent_time = -1;
   int tree_id = -1;
 
-  Vertex(arr _q, const std::pair<int, int> &_safe_interval): 
-  q(_q), safe_interval(_safe_interval) {
-    for (int i = 0; i < q.N; i++) {
-      coords(i) = q(i);
-  }
+
+  Vertex(const std::vector<double> &coords_, std::pair<int, int> safe_interval_) : coords(coords_.data()), safe_interval(safe_interval_), parent(nullptr) 
+  {
+    arr q_(coords.size());
+    for (int i=0;i<coords_.size();i++) {
+      q_(i) = coords_[i];
+    }
+    this->q = q_;
   };
+  Vertex(const VertexCoordType &coords_, std::pair<int, int> safe_interval_) : coords(coords_), safe_interval(safe_interval_), parent(nullptr)
+  {
+    arr q_(coords.size());
+    for (int i=0;i<coords_.size();i++) {
+      q_(i) = coords_[i];
+    }
+    this->q = q_;
+    for (int i=0;i<coords_.size();i++) {this->q(i) = coords_[i];}
+  };
+
 
   void addChild(Vertex* v){
     children.push_back(v);
@@ -367,7 +380,8 @@ struct PathFinder_RRT_Time{
     std::vector<Node*> np;
     {
       Node* n = leafNode1;
-      while(!!n->parent){
+      while(!!n->parent)
+      {
         np.push_back(n);
         n = n->parent;
       }
@@ -378,7 +392,8 @@ struct PathFinder_RRT_Time{
 
     {
       Node* n = leafNode2;
-      while(n->parent){
+      while(n->parent)
+      {
         np.push_back(n);
         n = n->parent;
       }
@@ -404,7 +419,7 @@ struct PathFinder_RRT_Time{
 
 
 struct PathFinder_SIRRT_Time{
-  // Ихний стафф
+  // Их
   TimedConfigurationProblem &TP;
 
   FrameL prePlannedFrames;
@@ -449,19 +464,31 @@ struct PathFinder_SIRRT_Time{
   bool verbose = false;
   bool disp = false;
 
-  // Наш стафф
+  // Нашe
 
   // Методы
-  std::vector<std::pair<int, int>> get_safe_intervals(const arr &q);
+  std::vector<std::pair<int, int>> get_safe_intervals(const VertexCoordType &qq);
 
   arr getDelta(const arr &p1, const arr &p2);
   double q_metric(const arr& d) const;
 
-  bool is_collision_motion(const arr &start_coords, const arr &end_coords, double &start_time, double &end_time)
+  bool is_collision_motion(const VertexCoordType &start_coords, const VertexCoordType &end_coords, double &start_time, double &end_time)
   {
-    return false; //!TP.checkEdge(start_coords, start_time, end_coords, end_time, 20);
+    arr start_q(start_coords.size());
+    arr end_q(start_coords.size());
+    for (int i=0; i<start_coords.size(); i++)
+    {
+      start_q(i) = start_coords[i];
+      end_q(i) = end_coords[i];
+    }
+    return !TP.checkEdge(start_q, start_time, end_q, end_time, 5);
   }
-  bool is_collision_state(const arr &q, int &time) { return !TP.query(q, time * dt)->isFeasible; } //time = frame number here
+
+
+  bool is_collision_state(const arr &q, int &time) // not in use
+  { 
+    return !TP.query(q, time * dt)->isFeasible; 
+  } //time = frame number here
 
 
   Vertex *get_nearest_node(const VertexCoordType &coords)
@@ -511,7 +538,7 @@ struct PathFinder_SIRRT_Time{
   // Постоянные для каждого плана 
   int dimensionality = 7;
   double dt = 1.0/20.0; // HARDCODE!, fps analog
-  double vmax = 3.1415;
+  double vmax = 0.16;
   double goal_bias = 0.4;
   double planner_range = 1.0;
 
