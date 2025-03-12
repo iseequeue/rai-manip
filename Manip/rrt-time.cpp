@@ -3,6 +3,9 @@
 #include <chrono>
 #include <memory>
 
+#include <thread>
+#include <mutex>
+
 #define PERIODIC
 
 arr PathFinder_RRT_Time::getDelta(const arr &p1, const arr &p2){
@@ -850,14 +853,72 @@ TimedPath PathFinder_RRT_Time::plan(const arr &q0, const double t0, const arr &q
 //=========================================================================================================================================================================================
 
 
-std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const VertexCoordType &qq) {
+ //std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const Eigen::VectorXd &qq) {
+//   std::vector<std::pair<int, int>> safeIntervals;
+//   std::mutex safeIntervalsMutex;
+
+//   arr q(qq.size());
+//   for (int i = 0; i < qq.size(); i++) {
+//       q(i) = qq(i);
+//   }
+
+//   // Количество потоков
+//   const int numThreads = std::thread::hardware_concurrency();
+//   std::vector<std::thread> threads;
+
+//   // Функция для обработки диапазона кадров
+//   auto processFrames = [&](int startFrame, int endFrame) {
+//       std::vector<std::pair<int, int>> localSafeIntervals;
+//       bool isSafe = false;
+//       int intervalStartFrame = 0;
+
+//       for (int frame = startFrame; frame <= endFrame; ++frame) {
+//           double t = t_start + frame * dt;
+//           bool currentState = TP.query(q, t)->isFeasible;
+
+//           if (currentState && !isSafe) {
+//               intervalStartFrame = frame;
+//               isSafe = true;
+//           } else if (!currentState && isSafe) {
+//               localSafeIntervals.push_back({intervalStartFrame, frame - 1});
+//               isSafe = false;
+//           }
+//       }
+
+//       if (isSafe) {
+//           localSafeIntervals.push_back({intervalStartFrame, endFrame});
+//       }
+
+//       // Синхронизированное добавление результатов в общий вектор
+//       std::lock_guard<std::mutex> lock(safeIntervalsMutex);
+//       safeIntervals.insert(safeIntervals.end(), localSafeIntervals.begin(), localSafeIntervals.end());
+//   };
+
+//   // Распределение работы между потоками
+//   int framesPerThread = (n_frames + 1) / numThreads;
+//   for (int i = 0; i < numThreads; ++i) {
+//       int startFrame = i * framesPerThread;
+//       int endFrame = (i == numThreads - 1) ? n_frames : (startFrame + framesPerThread - 1);
+//       threads.emplace_back(processFrames, startFrame, endFrame);
+//   }
+
+//   // Ожидание завершения всех потоков
+//   for (auto& thread : threads) {
+//       thread.join();
+//   }
+//   std::sort(safeIntervals.begin(), safeIntervals.end());
+
+//   return safeIntervals;
+// }
+
+std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const Eigen::VectorXd &qq) {
   std::vector<std::pair<int, int>> safeIntervals;
   bool isSafe = false;
   int intervalStartFrame = 0;
   arr q(qq.size());
   for (int i=0; i<qq.size(); i++)
   {
-    q(i) = qq[i];
+    q(i) = qq(i);
   }
 
   for (int frame = 0; frame <= n_frames; ++frame) {
@@ -876,12 +937,6 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const
       safeIntervals.push_back({intervalStartFrame, n_frames});
   }
 
-  // for (int i=0; i< safeIntervals.size(); i++)
-  // {
-  //   std::cout << safeIntervals[i].first << ' ' << safeIntervals[i].second << ' ' << n_frames << ',';
-  // }
-  // std::cout << std::endl;
-  // std::cout << "finish si\n";
   return safeIntervals;
 }
 
@@ -932,11 +987,11 @@ double PathFinder_SIRRT_Time::q_metric(const arr& d) const{
   }
 
 
-bool PathFinder_SIRRT_Time::extend(VertexCoordType &coords_of_new)
+bool PathFinder_SIRRT_Time::extend(Eigen::VectorXd &coords_of_new)
 {
   // std::cout << "start extend\n";
   Vertex *q_nearest = this->get_nearest_node(coords_of_new); 
-  VertexCoordType delta_vector = coords_of_new - q_nearest->coords;
+  Eigen::VectorXd delta_vector = coords_of_new - q_nearest->coords;
   double delta = delta_vector.norm();
   if (delta <= (1 / 100000000)) {return false;}
 
@@ -946,13 +1001,14 @@ bool PathFinder_SIRRT_Time::extend(VertexCoordType &coords_of_new)
   return true;
 }
 
-std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand)
+std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(Eigen::VectorXd &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand)
 {   
     std::vector<std::pair<Vertex *, int>> nearest_nodes = this->get_nearest_node_by_radius(coord_rand, 9 * this->planner_range * this->planner_range, (this->current_tree));
     std::vector<Vertex *> added_vertices;
     int safe_interval_ind = 0;
     if (this->current_tree == this->start_tree)
     {
+        std::cout << "start tree\n";
         double time_to_goal = (coord_rand - this->goal_coords).norm() / this->dt / this->vmax; //changed fps here
         std::sort(nearest_nodes.begin(), nearest_nodes.end(), [](const std::pair<Vertex *, int> &a, std::pair<Vertex *, int> &b)
                   { return a.first->arrival_time < b.first->arrival_time; });
@@ -990,7 +1046,7 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                     continue;
                 }
 
-                VertexCoordType start_coords = candidate_node.first->coords;
+                Eigen::VectorXd start_coords = candidate_node.first->coords;
 
                 // for each departure time
                 // std::cout << std::max(candidate_node.first->arrival_time, (double)safe_int.first - time_to_node) << ' ' << std::min((double)candidate_node.first->safe_interval.second, (double)safe_int.second - time_to_node)  << std::endl;
@@ -1031,6 +1087,7 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
     
     else if (this->current_tree == this->goal_tree)
     {
+      std::cout << "goal tree \n";
         double time_to_start = (coord_rand - this->root_node->coords).norm() * (1.0/dt) / this->vmax;
         std::sort(nearest_nodes.begin(), nearest_nodes.end(), [](const std::pair<Vertex *, int> &a, std::pair<Vertex *, int> &b)
                   { return a.first->arrival_time > b.first->arrival_time; });
@@ -1068,7 +1125,7 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(VertexCoordType &coord_r
                 }
                 // assert(candidate_node.first);
 
-                VertexCoordType start_coords = candidate_node.first->coords;
+                Eigen::VectorXd start_coords = candidate_node.first->coords;
 
                 // for each departure time
                 std::cout << std::min(candidate_node.first->arrival_time, (double)safe_int.second + time_to_node) << ' ' << std::max((double)candidate_node.first->safe_interval.first, (double)safe_int.first + time_to_node) << std::endl;
@@ -1117,7 +1174,7 @@ void PathFinder_SIRRT_Time::swap_trees()
     std::swap(this->current_tree, this->other_tree);
 }
 
-std::vector<Vertex *> PathFinder_SIRRT_Time::grow_tree(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand)
+std::vector<Vertex *> PathFinder_SIRRT_Time::grow_tree(Eigen::VectorXd &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand)
 {
     std::vector<Vertex *> result;
     std::vector<Vertex *> array_of_new_nodes = this->set_parent(coord_rand, safe_intervals_of_coord_rand);
@@ -1138,10 +1195,10 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::grow_tree(VertexCoordType &coord_ra
 }
 
 
-bool PathFinder_SIRRT_Time::connect_trees(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand, std::vector<Vertex *> another_tree_new_nodes)
+bool PathFinder_SIRRT_Time::connect_trees(Eigen::VectorXd &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand, std::vector<Vertex *> another_tree_new_nodes)
 {
   
-    const VertexCoordType original_coord_rand = coord_rand;
+    const Eigen::VectorXd original_coord_rand = coord_rand;
     while (true)
     {
         coord_rand = original_coord_rand;
@@ -1277,35 +1334,33 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     this->t_max = t_up;
     this->n_frames = std::ceil((t_up - t0) / dt);
     this->goal_reached = false;
-    this->max_planning_time = 100000;
+    this->max_planning_time = 15;
     goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
 
-    this->start_tree = new Tree_nf("start_tree", 0);
-    this->goal_tree = new  Tree_nf("goal_tree", 1);
+    this->start_tree = new Tree_nf("start_tree", 0, this->dimensionality);
+    this->goal_tree = new  Tree_nf("goal_tree", 1, this->dimensionality);
 
-    // this->start_tree->array_of_vertices.reserve(1000000);  // TODO: decide to leave it or remove it
-    // this->goal_tree->array_of_vertices.reserve(1000000);   // TODO: decide to leave it or remove it
+    this->start_tree->array_of_vertices.reserve(1000000);  // TODO: decide to leave it or remove it
+    this->goal_tree->array_of_vertices.reserve(1000000);   // TODO: decide to leave it or remove it
     std::cout << "start:" <<  q0    << " time: " << t0 <<std::endl;
     std::cout << "goal:"  << q_goal << " time: " << t_up <<std::endl;
-    VertexCoordType q0_coords;
-    VertexCoordType q_goal_coords;
+    Eigen::VectorXd q0_coords(this->dimensionality);
+    Eigen::VectorXd q_goal_coords(this->dimensionality);
     for (int i = 0; i < q0.N; ++i)
     {
-      q0_coords[i] = q0(i);
-      q_goal_coords[i] = q_goal(i);
+      q0_coords(i) = q0(i);
+      q_goal_coords(i) = q_goal(i);
+
     }
 
     std::vector<std::pair<int, int>> start_safe_intervals = this->get_safe_intervals(q0_coords);
 
     this->start_tree->add_vertex(Vertex(q0_coords, start_safe_intervals[0]), nullptr, -1, 0);
 
-    if (this->start_tree && this->start_tree->array_of_vertices.size() > 0) {
-    this->root_node = this->start_tree->array_of_vertices.data();
+    this->root_node = &this->start_tree->array_of_vertices[0];
     this->root_node->arrival_time = t0;
-    }
-    else{
-      std::cout << "fucked up\n";
-    }
+    
+    goal_coords.resize(this->dimensionality);
     for (int i = 0; i < this->dimensionality; i++) {
       this->goal_coords(i) = q_goal(i);
     }
@@ -1356,12 +1411,12 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     {        
         v_count++;
         std::cout<< v_count << " " << this->start_tree->array_of_vertices.size() << " " << this->goal_tree->array_of_vertices.size() <<  std::endl;
-        VertexCoordType coord_rand;
+        Eigen::VectorXd coord_rand(this->dimensionality);
   
-        // arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
-        arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
+        arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
+        // arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
         for (int i = 0; i < this->dimensionality; i++) {
-          coord_rand[i] = qs(i);
+          coord_rand(i) = qs(i);
         }
         std::cout << qs << std::endl;
 
@@ -1388,7 +1443,11 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     // spdlog::info("МЫ ЗДЕСЬ 1");
     if (this->goal_reached) std::cout << "МЫ НАШЛИ РЕШЕНИЕ, МЫ НАШЛИ ЕГО\n";
 
-    if (!this->goal_reached) {delete this->start_tree; delete this->goal_tree; return TimedPath({}, {});}
+    if (!this->goal_reached) {delete this->start_tree; delete this->goal_tree;      start_tree = nullptr;
+      goal_tree = nullptr;
+      current_tree = nullptr;
+      other_tree = nullptr;
+      root_node = nullptr; return TimedPath({}, {});}
     else
     {
       arr path;
@@ -1421,7 +1480,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
         double t = 0.0;
         arr v_q(v->coords.size());
         for (int i = 0; i<v->coords.size(); i++)
-          v_q(i) = v->coords[i];
+          v_q(i) = v->coords(i);
           path.append(v_q);
         if (v_count == 0)
         {

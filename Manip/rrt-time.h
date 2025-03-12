@@ -43,13 +43,12 @@ struct Node{
   }
 };
 
-typedef Eigen::Matrix<double, 7, 1> VertexCoordType;   //PYH
+// typedef Eigen::Matrix<double, 7, 1> VertexCoordType;   //PYH
 
 struct Vertex{
-  arr q;
   // arr x;
   
-  VertexCoordType coords; 
+  Eigen::VectorXd coords; 
   std::pair<int, int> safe_interval;
   double cost = -1;
 
@@ -62,32 +61,20 @@ struct Vertex{
   int tree_id = -1;
 
 
-  Vertex(const std::vector<double> &coords_, std::pair<int, int> safe_interval_) : coords(coords_.data()), safe_interval(safe_interval_), parent(nullptr) 
-  {
-    arr q_(coords.size());
-    for (int i=0;i<coords_.size();i++) {
-      q_(i) = coords_[i];
-    }
-    this->q = q_;
-  };
-  Vertex(const VertexCoordType &coords_, std::pair<int, int> safe_interval_) : coords(coords_), safe_interval(safe_interval_), parent(nullptr)
-  {
-    arr q_(coords.size());
-    for (int i=0;i<coords_.size();i++) {
-      q_(i) = coords_[i];
-    }
-    this->q = q_;
-    for (int i=0;i<coords_.size();i++) {this->q(i) = coords_[i];}
-  };
+  Vertex(const std::vector<double> &coords_, std::pair<int, int> safe_interval_) 
+  : coords(Eigen::Map<const Eigen::VectorXd>(coords_.data(), coords_.size())),
+    safe_interval(safe_interval_), 
+    parent(nullptr) 
+{}
 
+Vertex(const Eigen::VectorXd &coords_, std::pair<int, int> safe_interval_) 
+  : coords(coords_), 
+    safe_interval(safe_interval_), 
+    parent(nullptr)
+{}
 
   void addChild(Vertex* v){
     children.push_back(v);
-  }
-
-  void print() const{
-    std::cout << "t: [" << safe_interval.first << " " << safe_interval.second <<"] \n";
-    std::cout << "q: " << q << std::endl;
   }
 
   void updateCost(const double newCost){
@@ -100,16 +87,82 @@ struct Vertex{
   }
 };
 
-struct Tree_nf;
 
-#define TREE_DIMENSIONALITY 7  //PYH
-typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<nanoflann::L2_Simple_Adaptor<double, Tree_nf>, Tree_nf, TREE_DIMENSIONALITY> KdTree;
+struct Tree_nf {
+  using KdTree = nanoflann::KDTreeSingleIndexDynamicAdaptor<
+      nanoflann::L2_Simple_Adaptor<double, Tree_nf>,
+      Tree_nf,
+      -1 // Автоматическое определение размерности
+  >;
 
+  Tree_nf(const std::string& name, size_t idx, int dim)
+      : tree_name(name), tree_idx(idx), kd_tree(dim, *this, nanoflann::KDTreeSingleIndexAdaptorParams(25)) {}
+
+  // Запрет копирования
+  Tree_nf(const Tree_nf&) = delete;
+  Tree_nf& operator=(const Tree_nf&) = delete;
+
+  // Разрешаем перемещение
+  Tree_nf(Tree_nf&&) = default;
+  Tree_nf& operator=(Tree_nf&&) = default;
+
+  // Основные методы
+  void add_vertex(Vertex q_new, Vertex *q_parent, double departure_time, double arrival_time)
+  {
+    q_new.tree_id = this->tree_idx;
+    q_new.parent = q_parent;
+    q_new.arrival_time = arrival_time;
+    q_new.departure_from_parent_time = departure_time;
+    this->array_of_vertices.push_back(q_new);
+
+    size_t N{array_of_vertices.size() - 1};
+      this->kd_tree.addPoints(N, N);
+
+    if (q_parent != nullptr)
+    {
+        q_parent->children.push_back(&(this->array_of_vertices.back()));
+    }
+}
+
+  Vertex& getNearestState(const Vertex& query) {
+      size_t idx;
+      double dist_sq;
+      nanoflann::KNNResultSet<double> resultSet(1);
+      resultSet.init(&idx, &dist_sq);
+      kd_tree.findNeighbors(resultSet, query.coords.data(), {});
+      return array_of_vertices[idx];
+  }
+
+  void delete_vertex(size_t index) {
+      // Удаляем из индекса
+      kd_tree.removePoint(index);
+      // Удаляем из вектора (помечаем как удаленный, если нужно)
+      // Примечание: nanoflann не поддерживает удаление из динамических индексов
+      // Это требует дополнительной обработки
+  }
+
+  // Интерфейс для nanoflann
+  inline size_t kdtree_get_point_count() const { return array_of_vertices.size(); }
+
+  inline double kdtree_get_pt(const size_t idx, const size_t dim) const  {
+    return array_of_vertices[idx].coords(dim);
+}
+  template <class BBOX>
+  bool kdtree_get_bbox(BBOX&) const { return false; }
+
+  // Данные
+  std::string tree_name;
+  size_t tree_idx;
+  std::vector<Vertex> array_of_vertices;
+  KdTree kd_tree;
+};
+
+ /*
 struct Tree_nf: GLDrawer
 {
     Tree_nf(): tree_name(""), tree_idx(-1), kd_tree(TREE_DIMENSIONALITY, *this, nanoflann::KDTreeSingleIndexAdaptorParams(25)) {};;
     Tree_nf(const std::string &tree_name_, size_t tree_idx_) : tree_name(tree_name_), tree_idx(tree_idx_),
-    kd_tree(7, *this, nanoflann::KDTreeSingleIndexAdaptorParams(25)) {};; //PYH
+    kd_tree(7, *this, nanoflann::KDTreeSingleIndexAdaptorParams(25)) {};; 
     ~Tree_nf(){};                                     // destructor
     Tree_nf(const Tree_nf &other) = delete;            // copy constructor
     Tree_nf(Tree_nf &&other) = default;                // move constructor
@@ -154,10 +207,10 @@ struct Tree_nf: GLDrawer
     void delete_vertex(int vertex_id){   this->kd_tree.removePoint(vertex_id); }
 
     template <class BBOX>
-    bool kdtree_get_bbox(BBOX & /* bb */) const { return false; } 
+    bool kdtree_get_bbox(BBOX &) const { return false; } 
     inline size_t kdtree_get_point_count() const { return array_of_vertices.size(); }
-    inline double kdtree_get_pt(const size_t idx, const size_t dim) const { return array_of_vertices[idx].q(dim); }  // у них индексация через круглые скобки
-};
+    inline double kdtree_get_pt(const size_t idx, const size_t dim) const { return array_of_vertices[idx].q(dim); } 
+}; */
 
 
 struct Tree: GLDrawer {
@@ -467,21 +520,21 @@ struct PathFinder_SIRRT_Time{
   // Нашe
 
   // Методы
-  std::vector<std::pair<int, int>> get_safe_intervals(const VertexCoordType &qq);
+  std::vector<std::pair<int, int>> get_safe_intervals(const Eigen::VectorXd &qq);
 
   arr getDelta(const arr &p1, const arr &p2);
   double q_metric(const arr& d) const;
 
-  bool is_collision_motion(const VertexCoordType &start_coords, const VertexCoordType &end_coords, double &start_time, double &end_time)
+  bool is_collision_motion(const Eigen::VectorXd &start_coords, const Eigen::VectorXd &end_coords, double &start_time, double &end_time)
   {
     arr start_q(start_coords.size());
     arr end_q(start_coords.size());
     for (int i=0; i<start_coords.size(); i++)
     {
-      start_q(i) = start_coords[i];
-      end_q(i) = end_coords[i];
+      start_q(i) = start_coords(i);
+      end_q(i) = end_coords(i);
     }
-    return !TP.checkEdge(start_q, start_time, end_q, end_time, 5);
+    return !TP.checkEdge(start_q, start_time, end_q, end_time, 20);
   }
 
 
@@ -491,7 +544,7 @@ struct PathFinder_SIRRT_Time{
   } //time = frame number here
 
 
-  Vertex *get_nearest_node(const VertexCoordType &coords)
+  Vertex *get_nearest_node(const Eigen::VectorXd &coords)
   {
     const size_t num_results = 1;
     size_t ret_index;
@@ -503,7 +556,7 @@ struct PathFinder_SIRRT_Time{
     return &(this->current_tree->array_of_vertices[ret_index]);
   }
 
-  std::vector<std::pair<Vertex *, int>> get_nearest_node_by_radius(VertexCoordType &coords, double raduis, Tree_nf *tree)
+  std::vector<std::pair<Vertex *, int>> get_nearest_node_by_radius(Eigen::VectorXd &coords, double raduis, Tree_nf *tree)
   {
     std::vector<std::pair<Vertex *, int>> result;
     // std::vector<std::pair<size_t, double>> indices_dists;
@@ -521,13 +574,13 @@ struct PathFinder_SIRRT_Time{
     return result;
   }
 
-  bool extend(VertexCoordType &coords_of_new);
+  bool extend(Eigen::VectorXd &coords_of_new);
 
-  std::vector<Vertex *> set_parent(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
+  std::vector<Vertex *> set_parent(Eigen::VectorXd &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
 
-  bool connect_trees(VertexCoordType& coord_rand, std::vector<std::pair<int, int>>& safe_intervals_of_coord_rand,std::vector<Vertex* > new_nodes);
+  bool connect_trees(Eigen::VectorXd& coord_rand, std::vector<std::pair<int, int>>& safe_intervals_of_coord_rand,std::vector<Vertex* > new_nodes);
   void swap_trees();
-  std::vector<Vertex*> grow_tree(VertexCoordType &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
+  std::vector<Vertex*> grow_tree(Eigen::VectorXd &coord_rand, std::vector<std::pair<int, int>> &safe_intervals_of_coord_rand);
   void prune_goal_tree();
 
   bool check_planner_termination_condition() const;
@@ -538,12 +591,12 @@ struct PathFinder_SIRRT_Time{
   // Постоянные для каждого плана 
   int dimensionality = 7;
   double dt = 1.0/20.0; // HARDCODE!, fps analog
-  double vmax = 0.16;
+  double vmax = 0.9;
   double goal_bias = 0.4;
   double planner_range = 1.0;
 
   bool stop_when_path_found = true;  
-  float max_planning_time = 1000;
+  float max_planning_time = 15;
 
   //==============================================================
   // На каждом плане свои
@@ -560,7 +613,7 @@ struct PathFinder_SIRRT_Time{
   bool goal_reached = false;
   Vertex * finish_node;
   
-  VertexCoordType goal_coords;
+  Eigen::VectorXd goal_coords;
   std::vector<std::pair<int, int>> goal_safe_intervals;
   
   std::pair<Vertex *, Vertex *> goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
