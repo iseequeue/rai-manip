@@ -921,8 +921,8 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const
     q(i) = qq(i);
   }
 
-  for (int frame = 0; frame <= n_frames; ++frame) {
-      double t = t_start + frame * dt;
+  for (int frame = 0; frame < n_frames; ++frame) {
+      double t = this->t_start + frame * dt;
       bool currentState = TP.query(q, t)->isFeasible;
 
       if (currentState && !isSafe) {
@@ -934,20 +934,20 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const
       }
   }
   if (isSafe) {
-      safeIntervals.push_back({intervalStartFrame, n_frames});
+      safeIntervals.push_back({intervalStartFrame, n_frames -1 });
   }
-
+  std::cout << "get safe interval: " ;
+  for (int i=0; i<safeIntervals.size(); i++)
+    std::cout << safeIntervals[i].first << ' ' << safeIntervals[i].second << ", ";
+  std::cout << std::endl;
   return safeIntervals;
 }
 
 arr PathFinder_SIRRT_Time::getDelta(const arr &p1, const arr &p2){
   #ifdef PERIODIC
     arr tmp(delta_buffer.N);
-    // delta_buffer = p1 - p2;
-    // for (uint i=0; i<p1.d0; ++i){delta_buffer(i) = p1(i) - p2(i);}
     for (uint i=0; i<delta_buffer.N; ++i){
       if (periodicDimensions[i]){
-        // this is an angular joint -> we need to check the other direction
         const double start = p1.p[i];
         const double end = p2.p[i];
         tmp.p[i] = std::fmod(start - end + 3.*RAI_PI, 2*RAI_PI) - RAI_PI;
@@ -967,29 +967,20 @@ double PathFinder_SIRRT_Time::q_metric(const arr& d) const{
   #if 1
     double dist = 0;
     for (auto *j: TP.C.activeJoints){
-      //double tmp = length(d({j->qIndex, j->qIndex+j->dim-1}));
-      // const double tmp = absMax(d({j->qIndex, j->qIndex+j->dim-1}));
       double tmp = 0;
       for (uint i=j->qIndex; i < j->qIndex+j->dim; ++i){
         tmp = std::max({tmp, abs(d(i))});
       }
-      // std::cout << tmp << " " << absMax(d({j->qIndex, j->qIndex+j->dim-1})) << std::endl;
       dist = std::max({tmp, dist});
-      // if (tmp > dist){dist = tmp;}
     }
-    /*for (uint i=0; i<d.N; ++i){ 
-      if(std::fabs(d(i)) > dist) {dist = std::fabs(d(i));}
-    }*/
     return dist;
   #else
     return length(d);
   #endif
   }
 
-
 bool PathFinder_SIRRT_Time::extend(Eigen::VectorXd &coords_of_new)
 {
-  // std::cout << "start extend\n";
   Vertex *q_nearest = this->get_nearest_node(coords_of_new); 
   Eigen::VectorXd delta_vector = coords_of_new - q_nearest->coords;
   double delta = delta_vector.norm();
@@ -997,7 +988,6 @@ bool PathFinder_SIRRT_Time::extend(Eigen::VectorXd &coords_of_new)
 
   if (delta < this->planner_range) { return true; }
   coords_of_new = q_nearest->coords + delta_vector.normalized() * this->planner_range;
-  // std::cout << "finish extend\n";
   return true;
 }
 
@@ -1340,8 +1330,8 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     this->start_tree = new Tree_nf("start_tree", 0, this->dimensionality);
     this->goal_tree = new  Tree_nf("goal_tree", 1, this->dimensionality);
 
-    this->start_tree->array_of_vertices.reserve(1000000);  // TODO: decide to leave it or remove it
-    this->goal_tree->array_of_vertices.reserve(1000000);   // TODO: decide to leave it or remove it
+    this->start_tree->array_of_vertices.reserve(1000000);  // DONT REMOVE IT!
+    this->goal_tree->array_of_vertices.reserve(1000000);   // DONT REMOVE IT!
     std::cout << "start:" <<  q0    << " time: " << t0 <<std::endl;
     std::cout << "goal:"  << q_goal << " time: " << t_up <<std::endl;
     Eigen::VectorXd q0_coords(this->dimensionality);

@@ -517,13 +517,12 @@ struct PathFinder_SIRRT_Time{
   bool verbose = false;
   bool disp = false;
 
-  // Нашe
-
   // Методы
   std::vector<std::pair<int, int>> get_safe_intervals(const Eigen::VectorXd &qq);
 
   arr getDelta(const arr &p1, const arr &p2);
   double q_metric(const arr& d) const;
+
 
   bool is_collision_motion(const Eigen::VectorXd &start_coords, const Eigen::VectorXd &end_coords, double &start_time, double &end_time)
   {
@@ -534,14 +533,15 @@ struct PathFinder_SIRRT_Time{
       start_q(i) = start_coords(i);
       end_q(i) = end_coords(i);
     }
-    return !TP.checkEdge(start_q, start_time, end_q, end_time, 20);
+    // std::cout << "check edge " <<  start_time << ' ' << end_time << std::endl;
+    return !TP.checkEdge(start_q, start_time, end_q, end_time, 3); // 3 вообще ни на что не влияет
   }
 
 
-  bool is_collision_state(const arr &q, int &time) // not in use
-  { 
-    return !TP.query(q, time * dt)->isFeasible; 
-  } //time = frame number here
+  // bool is_collision_state(const arr &q, int &time) // not in use
+  // { 
+  //   return !TP.query(q, time * dt)->isFeasible; 
+  // } //time = frame number here
 
 
   Vertex *get_nearest_node(const Eigen::VectorXd &coords)
@@ -549,7 +549,6 @@ struct PathFinder_SIRRT_Time{
     const size_t num_results = 1;
     size_t ret_index;
     double out_dist_sqr;
-    // nanoflann::SearchParams search_params;
     nanoflann::KNNResultSet<double> resultSet(num_results);
     resultSet.init(&ret_index, &out_dist_sqr);
     this->current_tree->kd_tree.findNeighbors(resultSet, coords.data(), {0});
@@ -559,7 +558,6 @@ struct PathFinder_SIRRT_Time{
   std::vector<std::pair<Vertex *, int>> get_nearest_node_by_radius(Eigen::VectorXd &coords, double raduis, Tree_nf *tree)
   {
     std::vector<std::pair<Vertex *, int>> result;
-    // std::vector<std::pair<size_t, double>> indices_dists;
     std::vector<nanoflann::ResultItem<size_t, double>> indices_dists;
 
     nanoflann::RadiusResultSet<double, size_t> resultSet(raduis, indices_dists);
@@ -589,14 +587,14 @@ struct PathFinder_SIRRT_Time{
   //==================================================================
 
   // Постоянные для каждого плана 
-  int dimensionality = 7;
+  int dimensionality;
   double dt = 1.0/20.0; // HARDCODE!, fps analog
   double vmax = 0.9;
   double goal_bias = 0.4;
   double planner_range = 1.0;
 
   bool stop_when_path_found = true;  
-  float max_planning_time = 15;
+  float max_planning_time = 15; //in seconds
 
   //==============================================================
   // На каждом плане свои
@@ -618,6 +616,6 @@ struct PathFinder_SIRRT_Time{
   
   std::pair<Vertex *, Vertex *> goal_nodes = std::pair<Vertex *, Vertex *>(nullptr,nullptr);
   std::chrono::time_point<std::chrono::steady_clock> solver_start_time;
-  //Финальное творение
+
   TimedPath plan(const arr &q0, const double &t0, const arr &q_goal, const double &t_up);
 };
