@@ -1,9 +1,27 @@
 #include <Kin/proxy.h>
 #include <Optim/constrained.h>
+#include <fcl/fcl.h>
+#include <fcl/config.h>
 
 #include "ConfigurationProblem.h"
 
 #include <Geo/fclInterface.h>
+typedef fcl::CollisionObject<float> CollObject;
+typedef fcl::CollisionGeometry<float> CollGeom;
+
+typedef fcl::Vector3<float> Vec3f;
+typedef fcl::Quaternionf Quaternionf;
+typedef fcl::BroadPhaseCollisionManager<float> BroadPhaseCollisionManager;
+typedef fcl::DynamicAABBTreeCollisionManager<float> DynamicAABBTreeCollisionManager;
+typedef fcl::NaiveCollisionManager<float> NaiveCollisionManager;
+typedef fcl::CollisionRequest<float> CollisionRequest;
+typedef fcl::CollisionResult<float> CollisionResult;
+typedef fcl::DistanceRequest<float> DistanceRequest;
+typedef fcl::DistanceResult<float> DistanceResult;
+typedef fcl::Box<float> Box;
+typedef fcl::Sphere<float> Sphere;
+typedef fcl::Capsule<float> Capsule;
+typedef fcl::Cylinder<float> Cylinder;
 
 ConfigurationProblem::ConfigurationProblem(const rai::Configuration& _C, bool _computeCollisions)
   : C(_C), computeCollisions(_computeCollisions) {
@@ -230,6 +248,7 @@ shared_ptr<QueryResult> ConfigurationProblem::queryUsingFramestate(const arr &X)
     bool hasActive = true;
     if (activeOnly){
       hasActive = isActuated(p.a) | isActuated(p.b);
+      std::cout<<p.a->name<< " "<<p.b->name<<std::endl;
 
       if (!hasActive) {++i; continue;}
     }
@@ -364,6 +383,7 @@ shared_ptr<QueryResult> ConfigurationProblem::query(const arr& x, const bool set
     bool hasActive = true;
     if (activeOnly){
       hasActive = isActuated(p.a) | isActuated(p.b);
+      std::cout<<p.a->name<< " "<<p.b->name<<std::endl;
 
       if (!hasActive) {++i; continue;}
     }
@@ -694,6 +714,358 @@ arr ConfigurationProblem::sample(const arr &start, const arr &goal, const double
   return sample;
 }
 
+std::vector<std::pair<rai::String,CollObject*>> TimedConfigurationProblem::fcl_obstacles(const rai::Configuration& C) {
+  const arr X = C.getFrameState();
+  
+  std::vector<std::pair<rai::String,CollObject*>> result;
+    std::vector<rai::Shape*> geometries;
+    std::vector<uint> geometries_id;
+    std::vector<rai::Frame*> frs;
+
+
+    for(rai::Frame* f:C.frames) {
+      if(isActuated(f)){
+        // std::cout<<"Skipped actuated frame"<<std::endl;
+        continue;
+      }
+      bool cant_collide = false;
+      for (std::pair<rai::Frame*,CollObject*> &b:this->robot_link_objects){
+        rai::Frame* c = C.getFrames(TUP(b.first->ID))(0);
+        if (!(f->getShape().canCollideWith(c))) {
+          cant_collide = true;
+          break;
+        }
+
+        // Skip if one of the objects is an object we move.
+        // Otherwise some collision with the table will be ignored.
+        if (f->name.contains("obj") || c->name.contains("obj")){
+          break;
+        }
+
+        if (c == f->parent || f == c->parent) {
+          cant_collide = true;
+          break;
+        }
+        // if (c == f->getUpwardLink() || f == c->getDownwardLink()) {
+          // cant_collide = true;
+          // break;
+        // }
+    }
+    if (cant_collide){
+      continue;
+    }
+      if(f->shape && f->shape->cont) {
+        if(!f->shape->mesh().V.N) f->shape->createMeshes();
+        frs.push_back(f);
+        geometries.push_back(frs.back()->shape);
+        geometries_id.push_back(frs.back()->ID);
+      }
+    }
+
+    for(long int i=0; i<geometries.size(); i++) {
+      rai::Shape* shape = geometries[i];
+  
+      if(shape) {
+        std::shared_ptr<CollGeom> geom;
+        if(shape->type()==rai::ST_capsule) {
+          geom = make_shared<Capsule>(shape->size(-1), shape->size(-2));
+        } else if(shape->type()==rai::ST_cylinder) {
+          geom = make_shared<Cylinder>(shape->size(-1), shape->size(-2));
+        } else if(shape->type()==rai::ST_sphere) {
+          geom = make_shared<Sphere>(shape->size(-1));
+        }else if(shape->type()==rai::ST_box){
+          geom = make_shared<Box>(shape->size(0), shape->size(1), shape->size(2));
+        } else {
+          std::cout << shape->type() << std::endl;
+          std::cout << shape->frame.name << std::endl;
+          rai::Mesh& mesh = shape->mesh();
+
+          mesh.computeNormals();
+  
+          auto verts = make_shared<std::vector<fcl::Vector3<float>>>(mesh.V.d0);
+          auto faces = make_shared<std::vector<int>>(mesh.T.N);
+          for(uint i=0; i<verts->size(); i++){(*verts)[i] = {(float)mesh.V(i, 0), (float)mesh.V(i, 1), (float)mesh.V(i, 2)};
+          std::cout << mesh.V(i, 0) << " " << mesh.V(i, 1) << " " << mesh.V(i, 2) << std::endl;}
+          for(uint i=0; i<faces->size(); i++){(*faces)[i] = mesh.T.elem(i) * 1.;
+          std::cout << mesh.T.elem(i) << std::endl;}
+          geom = make_shared<fcl::Convex<float>>(verts, mesh.T.d0, faces, true);
+
+          const auto model = make_shared<fcl::Sphere<float>>(mesh.getRadius());
+        }
+        CollObject* obj = new CollObject(geom, fcl::Transform3f());
+        obj->setTranslation(Vec3f(X(geometries_id[i], 0), X(geometries_id[i], 1), X(geometries_id[i], 2)));
+        obj->setQuatRotation(Quaternionf(X(geometries_id[i], 3), X(geometries_id[i], 4), X(geometries_id[i], 5), X(geometries_id[i], 6)));
+        obj->computeAABB();
+        
+        result.push_back(std::pair<rai::String,CollObject*>(frs[i]->name,obj));
+      }
+    }
+  return result;
+}
+
+std::vector<std::pair<rai::Frame*,CollObject*>> TimedConfigurationProblem::fcl_robots(const rai::Configuration& C) {
+  const arr X = C.getFrameState();
+  
+  std::vector<std::pair<rai::Frame*,CollObject*>> result;
+    std::vector<rai::Shape*> geometries;
+    std::vector<uint> geometries_id;
+    std::vector<rai::Frame*> frs;
+
+
+    for(rai::Frame* f:C.frames) {
+      if(!isActuated(f)){
+        // std::cout<<"Skipped unactuated frame"<<std::endl;
+
+        continue;
+      }
+      if(f->shape && f->shape->cont) {
+        if(!f->shape->mesh().V.N) f->shape->createMeshes();
+        geometries.push_back(f->shape);
+        geometries_id.push_back(f->ID);
+        frs.push_back(f);
+      }
+    }
+
+    for(long int i=0; i<geometries.size(); i++) {
+      rai::Shape* shape = geometries[i];
+  
+      if(shape) {
+        std::shared_ptr<CollGeom> geom;
+        if(shape->type()==rai::ST_capsule) {
+          geom = make_shared<Capsule>(shape->size(-1), shape->size(-2));
+        } else if(shape->type()==rai::ST_cylinder) {
+          geom = make_shared<Cylinder>(shape->size(-1), shape->size(-2));
+        } else if(shape->type()==rai::ST_sphere) {
+          geom = make_shared<Sphere>(shape->size(-1));
+        }else if(shape->type()==rai::ST_box){
+          geom = make_shared<Box>(shape->size(0), shape->size(1), shape->size(2));
+        } else {
+          std::cout << shape->type() << std::endl;
+          std::cout << shape->frame.name << std::endl;
+          rai::Mesh& mesh = shape->mesh();
+
+          mesh.computeNormals();
+  
+          auto verts = make_shared<std::vector<fcl::Vector3<float>>>(mesh.V.d0);
+          auto faces = make_shared<std::vector<int>>(mesh.T.N);
+          for(uint i=0; i<verts->size(); i++){(*verts)[i] = {(float)mesh.V(i, 0), (float)mesh.V(i, 1), (float)mesh.V(i, 2)};
+          std::cout << mesh.V(i, 0) << " " << mesh.V(i, 1) << " " << mesh.V(i, 2) << std::endl;}
+          for(uint i=0; i<faces->size(); i++){(*faces)[i] = mesh.T.elem(i) * 1.;
+          std::cout << mesh.T.elem(i) << std::endl;}
+          geom = make_shared<fcl::Convex<float>>(verts, mesh.T.d0, faces, true);
+
+          const auto model = make_shared<fcl::Sphere<float>>(mesh.getRadius());
+        }
+        CollObject* obj = new CollObject(geom, fcl::Transform3f());
+        obj->setTranslation(Vec3f(X(geometries_id[i], 0), X(geometries_id[i], 1), X(geometries_id[i], 2)));
+        obj->setQuatRotation(Quaternionf(X(geometries_id[i], 3), X(geometries_id[i], 4), X(geometries_id[i], 5), X(geometries_id[i], 6)));
+        obj->computeAABB();
+        
+        result.push_back(std::pair<rai::Frame*,CollObject*>(frs[i],obj));
+      }
+    }
+  return result;
+}
+
+void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &start){
+  //Hardcode: 1 fps due to animation realisation.
+
+  // std::cout<<"Frames: "<<std::endl;
+  // for (rai::Frame* fr:C.frames){
+  //   if(fr->parent){
+  // std::cout<<"Frame: "<<fr->name<<" parent: "<<fr->parent->name<< " parentLink: "<<fr->getUpwardLink()->name<< " isActuated: " <<isActuated(fr) <<std::endl;
+
+  //   }
+  //   else{
+  // std::cout<<"Frame: "<<fr->name<<" parent: None"<<std::endl;
+
+  //   }
+
+
+  // }
+  // this->C.fcl()->deactivatedPairs;
+
+  //destructor
+  if(collision_manager_was_initialised){
+    std::cout<<"destructor"<<std::endl;
+    for(int col_id =0; col_id<this->collision_objects.size();col_id++){
+      delete (std::pair<double*,rai::String>*) (this->collision_objects[col_id]->getUserData());
+      delete this->collision_objects[col_id];
+    }
+    for(int col_id =0; col_id<this->robot_link_objects.size();col_id++){
+      delete (std::pair<double*,rai::Frame*>*) (this->robot_link_objects[col_id].second->getUserData());
+      delete this->robot_link_objects[col_id].second;
+    }
+    for(int time_id =0; time_id<this->time_marks.size();time_id++){
+      delete this->time_marks[time_id];
+    }
+
+    
+  }
+  this->time_marks.clear();
+  this->collision_objects.clear();
+  this->robot_link_objects.clear();
+  this->safe_interval_collision_manager.clear();
+  //Get frame number
+    // get minimal time
+    // get maximal time
+  // if (if (A.d0 != 0){
+
+  // })
+  // this->min_time=this->A.A(0).start;
+  // this->max_time=this->A.A(0).start+this->A.A(0).X.d0;
+
+  //calculate number of obstacles
+  // uint number_of_obstacles=0;
+
+  // for (auto& a: this->A.A) {
+  //   if(a.start < this->min_time){
+  //     this->min_time = a.start;
+  //   }
+  //   if(a.X.d0 + a.start>this->max_time) {
+  //     this->max_time=a.X.d0 + a.start;
+  //   }
+  //   // number_of_obstacles += a.frameIDs.N;
+  // }
+
+  C.setJointState(start);//set joint pos
+   // get robot links collision objects
+   this->robot_link_objects = this->fcl_robots(this->C);
+
+  uint number_of_frames = this->max_time-this->min_time+1;
+
+  std::cout<<"number_of_frames "<<number_of_frames<<std::endl;
+
+  
+  for (int frame_number=0;frame_number<number_of_frames;frame_number++){
+    ConfigurationProblem conf = this->getConfigurationProblemAtTime(this->min_time+frame_number);
+    std::vector<std::pair<rai::String,CollObject*>> obstacles =  this->fcl_obstacles(conf.C);
+    
+    this->time_marks.push_back(new double(this->min_time+frame_number));
+    std::cout<<"obstacles "<<obstacles.size()<<std::endl;
+    
+    for (int col_id=0;col_id<obstacles.size();col_id++){  
+      if(!obstacles[col_id].second){
+        std::cout<<"obstacles NULLPTR DETECTED! "<<col_id<<std::endl;
+      }
+      this->collision_objects.push_back(obstacles[col_id].second);
+      this->collision_objects.back()->setUserData((void*)(new std::pair<double*,rai::String>(this->time_marks.back(),obstacles[col_id].first)));
+      this->collision_objects.back()->computeAABB();
+    }
+  }
+  for (int frame_number=0;frame_number<this->collision_objects.size();frame_number++){
+    if(!collision_objects[frame_number]){
+      std::cout<<"NULLPTR DETECTED! "<<number_of_frames<<std::endl;
+    }
+  }
+  this->safe_interval_collision_manager.registerObjects(this->collision_objects);
+  this->safe_interval_collision_manager.setup();
+  this->collision_manager_was_initialised = true;
+
+
+ 
+
+  //to identify link in collision callback:
+  this->time_marks.push_back(new double(-1));
+  for(int robot_joint_id = 0; robot_joint_id < this->robot_link_objects.size(); robot_joint_id++){
+    this->robot_link_objects[robot_joint_id].second->setUserData((void*)(new std::pair<double*,rai::Frame*>(this->time_marks.back(),this->robot_link_objects[robot_joint_id].first)));
+  }
+
+
+}
+
+std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_intervals(const arr& x){
+  std::vector<std::pair<double,double>> results;
+  
+  C.setJointState(x);//set joint pos
+  
+  //update robot link objects pos
+
+  // assert(C.activeJoints.N == this->robot_link_objects.size());
+  for(int joint_id=0;joint_id<this->robot_link_objects.size();joint_id++){
+    this->robot_link_objects[joint_id].first->ensure_X();
+    this->robot_link_objects[joint_id].second->setTranslation(Vec3f(this->robot_link_objects[joint_id].first->X.pos.x, this->robot_link_objects[joint_id].first->X.pos.y,this->robot_link_objects[joint_id].first->X.pos.z));
+    this->robot_link_objects[joint_id].second->setQuatRotation(Quaternionf(this->robot_link_objects[joint_id].first->X.rot.w,this->robot_link_objects[joint_id].first->X.rot.x,this->robot_link_objects[joint_id].first->X.rot.y,this->robot_link_objects[joint_id].first->X.rot.z));
+    this->robot_link_objects[joint_id].second->computeAABB();
+  }
+  //collide
+  this->collision_moments.clear();
+  
+  for (int robot_joint_id = 0; robot_joint_id < this->robot_link_objects.size(); robot_joint_id++)
+  {
+      this->safe_interval_collision_manager.collide(this->robot_link_objects[robot_joint_id].second, this, this->BroadphaseCallback);
+  }
+    // for (const int collision_frame : collision_moments)
+    // {
+    //   std::cout<< "Collision_frame "<<collision_frame<<std::endl;
+    // }
+    //compute safe intervals
+
+    if (collision_moments.size() == 0)
+    {
+      // std::cout<<"all safe"<<std::endl;
+        results.emplace_back(this->min_time, this->max_time);
+        return results;
+    }
+    // sort and delete duplicates
+    std::sort(collision_moments.begin(), collision_moments.end());
+    collision_moments.erase(std::unique(collision_moments.begin(), collision_moments.end()), collision_moments.end());
+
+    int last_collision_frame = -1;
+    for (const int collision_frame : collision_moments)
+    {
+        if ((collision_frame - last_collision_frame) > 1)
+        {
+            results.emplace_back(last_collision_frame + 1, collision_frame - 1);
+        }
+
+        last_collision_frame = collision_frame;
+    }
+    if (this->max_time - collision_moments.back()  > 1)
+    {
+        results.emplace_back(collision_moments.back() + 1,  this->max_time);
+    }
+    return results;
+  
+  
+  
+
+
+}
+
+bool TimedConfigurationProblem::BroadphaseCallback(CollObject* o1, CollObject* o2, void* cdata_) {
+  TimedConfigurationProblem* self = static_cast<TimedConfigurationProblem*>(cdata_);
+
+
+  CollisionRequest request;
+  CollisionResult result;
+  fcl::collide(o1, o2, request, result);
+  if(result.isCollision()) {
+    // std::cout<<"Collision between"<<std::endl;
+    // std::cout<<((std::pair<double*,rai::String>*)(o1->getUserData()))->second<<" "<<o1->getNodeType()<<std::endl;
+    // std::cout<<((std::pair<double*,rai::Frame*>*)(o2->getUserData()))->second->name<<" "<<o2->getNodeType()<<std::endl;
+    
+    double d1,d2,d3;
+    d1 = *((double*)(((std::pair<double*,rai::Frame*>*)(o1->getUserData()))->first));
+    d2 = *((double*)(((std::pair<double*,rai::Frame*>*)(o2->getUserData()))->first));
+    d3 = d1;
+    if(d1 < 0){
+      d3 = d2;
+    }
+  
+    // fcl::DistanceRequest<float> requestd;
+    // fcl::DistanceResult<float> resultd;
+    // fcl::distance(o1, o2, requestd, resultd);
+    // std::cout<<"Distance: "<<resultd.min_distance<<std::endl;
+    // self->collision_moments.push_back(d3);
+
+
+    
+  }
+
+  return false;
+}
+
 // NOTE: this asumes that we are doing inf-norm sampling
 arr TimedConfigurationProblem::sample(const arr &start, const arr &goal, const double c_max, const double c_min){
   const arr limits = C.getLimits();
@@ -870,3 +1242,4 @@ bool makePoseFeasible(arr& x, ConfigurationProblem& P, double IKstepSize, double
   }
   return qr->isFeasible;
 }
+

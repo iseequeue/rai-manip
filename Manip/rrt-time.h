@@ -481,6 +481,7 @@ struct PathFinder_SIRRT_Time{
   std::vector<bool> periodicDimensions;
 
   PathFinder_SIRRT_Time(TimedConfigurationProblem &_TP) :TP(_TP){
+    
     delta_buffer = arr(TP.C.getJointState().N);
     periodicDimensions = std::vector<bool>(TP.C.getJointState().N, false);
 
@@ -519,6 +520,7 @@ struct PathFinder_SIRRT_Time{
 
   // Методы
   std::vector<std::pair<int, int>> get_safe_intervals(const Eigen::VectorXd &qq);
+  std::vector<std::pair<int, int>> get_safe_intervals_naive(const Eigen::VectorXd &qq);
 
   arr getDelta(const arr &p1, const arr &p2);
   double q_metric(const arr& d) const;
@@ -618,8 +620,8 @@ struct PathFinder_SIRRT_Time{
 
   // Постоянные для каждого плана 
   int dimensionality;
-  double dt = 1.0/20.0; // HARDCODE!, fps analog
-  double vmax = 0.9;
+  double dt = 1; // HARDCODE!, fps analog. DO NOT CHANGE. 1 fps due to Animation implementation.
+  double vmax = 0.1;
   double goal_bias = 0.4;
   double planner_range = 1.0;
 

@@ -849,69 +849,28 @@ TimedPath PathFinder_RRT_Time::plan(const arr &q0, const double t0, const arr &q
 }
 
 
-//=========================================================================================================================================================================================
-//=========================================================================================================================================================================================
-
-
- //std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const Eigen::VectorXd &qq) {
-//   std::vector<std::pair<int, int>> safeIntervals;
-//   std::mutex safeIntervalsMutex;
-
-//   arr q(qq.size());
-//   for (int i = 0; i < qq.size(); i++) {
-//       q(i) = qq(i);
-//   }
-
-//   // Количество потоков
-//   const int numThreads = std::thread::hardware_concurrency();
-//   std::vector<std::thread> threads;
-
-//   // Функция для обработки диапазона кадров
-//   auto processFrames = [&](int startFrame, int endFrame) {
-//       std::vector<std::pair<int, int>> localSafeIntervals;
-//       bool isSafe = false;
-//       int intervalStartFrame = 0;
-
-//       for (int frame = startFrame; frame <= endFrame; ++frame) {
-//           double t = t_start + frame * dt;
-//           bool currentState = TP.query(q, t)->isFeasible;
-
-//           if (currentState && !isSafe) {
-//               intervalStartFrame = frame;
-//               isSafe = true;
-//           } else if (!currentState && isSafe) {
-//               localSafeIntervals.push_back({intervalStartFrame, frame - 1});
-//               isSafe = false;
-//           }
-//       }
-
-//       if (isSafe) {
-//           localSafeIntervals.push_back({intervalStartFrame, endFrame});
-//       }
-
-//       // Синхронизированное добавление результатов в общий вектор
-//       std::lock_guard<std::mutex> lock(safeIntervalsMutex);
-//       safeIntervals.insert(safeIntervals.end(), localSafeIntervals.begin(), localSafeIntervals.end());
-//   };
-
-//   // Распределение работы между потоками
-//   int framesPerThread = (n_frames + 1) / numThreads;
-//   for (int i = 0; i < numThreads; ++i) {
-//       int startFrame = i * framesPerThread;
-//       int endFrame = (i == numThreads - 1) ? n_frames : (startFrame + framesPerThread - 1);
-//       threads.emplace_back(processFrames, startFrame, endFrame);
-//   }
-
-//   // Ожидание завершения всех потоков
-//   for (auto& thread : threads) {
-//       thread.join();
-//   }
-//   std::sort(safeIntervals.begin(), safeIntervals.end());
-
-//   return safeIntervals;
-// }
-
 std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const Eigen::VectorXd &qq) {
+  std::vector<std::pair<int, int>> safeIntervals;
+  bool isSafe = false;
+  int intervalStartFrame = 0;
+  arr q(qq.size());
+  for (int i=0; i<qq.size(); i++)
+  {
+    q(i) = qq(i);
+  }
+
+  std::vector<std::pair<double, double>> raw_safe_intervals =  this->TP.get_safe_intervals(q);
+  for (int safe_int_id=0;safe_int_id<raw_safe_intervals.size();safe_int_id++){
+     safeIntervals.emplace_back((raw_safe_intervals[safe_int_id].first-this->t_start)/this->dt,(raw_safe_intervals[safe_int_id].second-this->t_start)/this->dt);
+  }
+  std::cout << "get safe interval: " ;
+  for (int i=0; i<safeIntervals.size(); i++)
+    std::cout << safeIntervals[i].first << ' ' << safeIntervals[i].second << ", ";
+  std::cout << std::endl;
+  return safeIntervals;
+}
+
+std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals_naive(const Eigen::VectorXd &qq) {
   std::vector<std::pair<int, int>> safeIntervals;
   bool isSafe = false;
   int intervalStartFrame = 0;
@@ -1338,8 +1297,15 @@ bool PathFinder_SIRRT_Time::check_planner_termination_condition() const
 }
 
 TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr &q_goal, const double &t_up){
-    std::cout << "РАЗМЕРНОСТЬ " << q0.N << std::endl;
-    const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 
+  this->TP.min_time = t0;
+  std::cout << "t0 " << t0 << std::endl;
+  std::cout << "t_up " << t_up << std::endl;
+
+  this->TP.max_time = t_up;  
+  this->TP.init_safe_interval_collisison_check(q0);
+  
+  std::cout << "РАЗМЕРНОСТЬ " << q0.N << std::endl;
+  const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 
     this->dimensionality = q0.N;
     this->t_start = t0;
     this->t_max = t_up;

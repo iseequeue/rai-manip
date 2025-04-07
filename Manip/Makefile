@@ -20,7 +20,7 @@ CPATHS += /usr/include/eigen3
 #LIBS += -fopenmp -unroll-loops
 #LIBS += -unroll-loops
 
-LIBS += -lspdlog -lfmt  -g 
+LIBS += -lspdlog -lfmt 
 LPATHS += -L/usr/lib/x86_64-linux-gnu/libspdlog.so
 
 SRCS = $(shell find . -maxdepth 2 -name '*.cpp' )

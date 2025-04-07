@@ -3,10 +3,29 @@
 #include <Kin/kin.h>
 #include <KOMO/objective.h>
 #include <Optim/MathematicalProgram.h>
+#include "fcl/broadphase/broadphase_dynamic_AABB_tree.h"
+#include "fcl/broadphase/broadphase_dynamic_AABB_tree_array.h"
+#include "fcl/broadphase/default_broadphase_callbacks.h"
 
 #include <unordered_map>
 
 #include "Animation.h"
+typedef fcl::CollisionObject<float> CollObject;
+typedef fcl::CollisionGeometry<float> CollGeom;
+
+typedef fcl::Vector3<float> Vec3f;
+typedef fcl::Quaternionf Quaternionf;
+typedef fcl::BroadPhaseCollisionManager<float> BroadPhaseCollisionManager;
+typedef fcl::DynamicAABBTreeCollisionManager<float> DynamicAABBTreeCollisionManager;
+typedef fcl::CollisionRequest<float> CollisionRequest;
+typedef fcl::CollisionResult<float> CollisionResult;
+typedef fcl::DistanceRequest<float> DistanceRequest;
+typedef fcl::DistanceResult<float> DistanceResult;
+typedef fcl::Box<float> Box;
+typedef fcl::Sphere<float> Sphere;
+typedef fcl::Capsule<float> Capsule;
+typedef fcl::Cylinder<float> Cylinder;
+
 
 struct ConfigurationProblem;
 
@@ -74,13 +93,24 @@ struct ConfigurationProblem {
 
 struct TimedConfigurationProblem : ConfigurationProblem{
   rai::Animation A;
-
+  fcl::DynamicAABBTreeCollisionManager<float> safe_interval_collision_manager;
+  std::vector<fcl::CollisionObject<float>*> collision_objects;
+  std::vector<std::pair<rai::Frame*,CollObject*>> robot_link_objects;
+  std::vector<double*> time_marks;
+  double min_time;
+  double max_time;
+  bool collision_manager_was_initialised = false;
+  void init_safe_interval_collisison_check(const arr &start);
+  std::vector<std::pair<rai::String,CollObject*>> fcl_obstacles(const rai::Configuration& C);
+  std::vector<std::pair<rai::Frame*,CollObject*>> fcl_robots(const rai::Configuration& C);
+  static bool BroadphaseCallback(CollObject* o1, CollObject* o2, void* cdata_);
+  std::vector<double> collision_moments;
   TimedConfigurationProblem(const rai::Configuration& _C, const rai::Animation &_A);
   ConfigurationProblem getConfigurationProblemAtTime(const double t);
 
   ptr<QueryResult> query(const arr& x, const double t, const double tMin=0);
   ptr<QueryResult> query(const arr& x, const std::vector<double> times, const double tMin=0);
-
+  std::vector<std::pair<double,double>> get_safe_intervals(const arr& x);
   bool checkEdge(const arr& x0, const double t0, const arr &x1, const double t1, const uint discretization=3);
   arr sample(const arr &start={}, const arr &goal={}, const double c_max=0, const double c_min=0);
 };
