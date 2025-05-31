@@ -1075,11 +1075,6 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
         results.emplace_back(collision_moments.back() + 1,  this->max_time);
     }
     return results;
-  
-  
-  
-
-
 }
 
 bool TimedConfigurationProblem::BroadphaseCallback(CollObject* o1, CollObject* o2, void* cdata_) {

@@ -861,7 +861,7 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const
 
   std::vector<std::pair<double, double>> raw_safe_intervals =  this->TP.get_safe_intervals(q);
   
-  for (int safe_int_id=0;safe_int_id<raw_safe_intervals.size();safe_int_id++){
+  for (int safe_int_id=0; safe_int_id < raw_safe_intervals.size(); safe_int_id++){
      safeIntervals.emplace_back((raw_safe_intervals[safe_int_id].first-this->t_start)/this->dt,(raw_safe_intervals[safe_int_id].second-this->t_start)/this->dt);
   }
   std::cout << "get safe interval: " ;
@@ -1190,6 +1190,21 @@ bool PathFinder_SIRRT_Time::connect_trees(Eigen::VectorXd &coord_rand, std::vect
         std::vector<std::pair<int, int>> safe_intervals_of_coord_rand;
 
         safe_intervals_of_coord_rand = this->get_safe_intervals(coord_rand);
+
+        arr coord_randq(coord_rand.size());
+        for (int i=0; i<coord_rand.size(); i++)
+        {
+          coord_randq(i) = coord_rand(i);
+        }
+        for (int si_id=0; si_id < safe_intervals_of_coord_rand.size(); si_id++)
+        {
+            if (!TP.checkEdge(coord_randq, safe_intervals_of_coord_rand[si_id].first, coord_randq, safe_intervals_of_coord_rand[si_id].second)){
+              std::cout << "NEPRAVILNO INTERVALY\n";
+              int nnnn;
+              std::cin >> nnnn;
+            }
+        }
+        
         this->swap_trees();
         std::vector<Vertex *> new_nodes = this->grow_tree(coord_rand, safe_intervals_of_coord_rand);
         this->swap_trees();
@@ -1391,8 +1406,8 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
         std::cout<< v_count << " " << this->start_tree->array_of_vertices.size() << " " << this->goal_tree->array_of_vertices.size() <<  std::endl;
         Eigen::VectorXd coord_rand(this->dimensionality);
   
-        // arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
-        arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
+        arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
+        // arr qs = TP.sample(); //q0, q_goal, (max_goal_time - t0) * vmax, min_l);
         for (int i = 0; i < this->dimensionality; i++) {
           coord_rand(i) = qs(i);
         }
@@ -1483,6 +1498,21 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
       // std::cout << time << std::endl;
       // std::cout << path.d <<' ' << path.d0 << ' ' << path.d1 << ' ' << path.d2 << std::endl;
       // std::cout << path << std::endl;
+
+      
+      for(uint i=0; i<path.d0-1; i++)
+      {
+        std::cout << i << std::endl;
+        if(!TP.checkEdge(path[i], time(i), path[i+1], time(i+1)))
+        {
+            // Ошибка: путь содержит коллизии
+            std::cout << "COLLISIA\n";
+        }
+      }
+
+      std::cout << "NET COLLISIY\n";
+      int aaa;
+      std::cin >> aaa;
       return TimedPath(path, time);
     }
   }
