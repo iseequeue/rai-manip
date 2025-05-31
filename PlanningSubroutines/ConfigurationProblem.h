@@ -100,7 +100,8 @@ struct TimedConfigurationProblem : ConfigurationProblem{
   double min_time;
   double max_time;
   bool collision_manager_was_initialised = false;
-  void init_safe_interval_collisison_check(const arr &start);
+  void init_safe_interval_collisison_check(const arr &start, const double& t_start, const double& t_max);
+  std::pair<rai::String,CollObject*> create_obstacle_fcl(const rai::Frame* frame);
   std::vector<std::pair<rai::String,CollObject*>> fcl_obstacles(const rai::Configuration& C);
   std::vector<std::pair<rai::Frame*,CollObject*>> fcl_robots(const rai::Configuration& C);
   static bool BroadphaseCallback(CollObject* o1, CollObject* o2, void* cdata_);

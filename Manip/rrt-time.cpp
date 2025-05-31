@@ -860,6 +860,7 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const
   }
 
   std::vector<std::pair<double, double>> raw_safe_intervals =  this->TP.get_safe_intervals(q);
+  
   for (int safe_int_id=0;safe_int_id<raw_safe_intervals.size();safe_int_id++){
      safeIntervals.emplace_back((raw_safe_intervals[safe_int_id].first-this->t_start)/this->dt,(raw_safe_intervals[safe_int_id].second-this->t_start)/this->dt);
   }
@@ -1302,7 +1303,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
   std::cout << "t_up " << t_up << std::endl;
 
   this->TP.max_time = t_up;  
-  this->TP.init_safe_interval_collisison_check(q0);
+  this->TP.init_safe_interval_collisison_check(q0,t0,t_up);
   
   std::cout << "РАЗМЕРНОСТЬ " << q0.N << std::endl;
   const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 

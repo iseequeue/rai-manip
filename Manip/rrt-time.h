@@ -528,45 +528,45 @@ struct PathFinder_SIRRT_Time{
 
   bool is_collision_motion(const Eigen::VectorXd &start_coords, const Eigen::VectorXd &end_coords, double &start_time, double &end_time)
   {
-    // arr start_q(start_coords.size());
-    // arr end_q(start_coords.size());
-    // for (int i=0; i<start_coords.size(); i++)
+    arr start_q(start_coords.size());
+    arr end_q(start_coords.size());
+    for (int i=0; i<start_coords.size(); i++)
+    {
+      start_q(i) = start_coords(i);
+      end_q(i) = end_coords(i);
+    }
+    // std::cout << "check edge " <<  start_time << ' ' << end_time << std::endl;
+    return !TP.checkEdge(start_q, start_time, end_q, end_time, 3); // 3 вообще ни на что не влияет
+
+    // if (start_time >= end_time)
     // {
-    //   start_q(i) = start_coords(i);
-    //   end_q(i) = end_coords(i);
+    //     // std::cout << "start_time > end_time" << std::endl;
+    //     return true;
     // }
-    // // std::cout << "check edge " <<  start_time << ' ' << end_time << std::endl;
-    // return !TP.checkEdge(start_q, start_time, end_q, end_time, 3); // 3 вообще ни на что не влияет
+    // Eigen::VectorXd dir_vector = end_coords - start_coords;
 
-    if (start_time >= end_time)
-    {
-        // std::cout << "start_time > end_time" << std::endl;
-        return true;
-    }
-    Eigen::VectorXd dir_vector = end_coords - start_coords;
-
-    int interpolation_steps =  (int)(end_time - start_time + 0.5);
+    // int interpolation_steps =  (int)(end_time - start_time + 0.5);
     
-    // std::cout<<"interpolation_steps: "<<interpolation_steps<<" "<< dir_vector.norm()<<std::endl;
-    for (int step = 0; step <= interpolation_steps; step++)
-    {
+    // // std::cout<<"interpolation_steps: "<<interpolation_steps<<" "<< dir_vector.norm()<<std::endl;
+    // for (int step = 0; step <= interpolation_steps; step++)
+    // {
 
-        Eigen::VectorXd temp_coords = start_coords + dir_vector * (double)step / (double)interpolation_steps;
-        int time_frame = start_time + (double)(end_time - start_time) * (double)step / (double)interpolation_steps;
-        double t = time_frame*dt +this->t_start;
-        arr q(temp_coords.size());
-        for (int i=0; i<temp_coords.size(); i++)
-        {
-          q(i) = temp_coords(i);
-        }
-        if (!TP.query(q, t)->isFeasible)
-        {
-            // std::cout << "is_collision!!" << std::endl;
+    //     Eigen::VectorXd temp_coords = start_coords + dir_vector * (double)step / (double)interpolation_steps;
+    //     int time_frame = start_time + (double)(end_time - start_time) * (double)step / (double)interpolation_steps;
+    //     double t = time_frame*dt +this->t_start;
+    //     arr q(temp_coords.size());
+    //     for (int i=0; i<temp_coords.size(); i++)
+    //     {
+    //       q(i) = temp_coords(i);
+    //     }
+    //     if (!TP.query(q, t)->isFeasible)
+    //     {
+    //         // std::cout << "is_collision!!" << std::endl;
 
-            return true;
-        }
-    }
-    return false;
+    //         return true;
+    //     }
+    // }
+    // return false;
   }
 
 
