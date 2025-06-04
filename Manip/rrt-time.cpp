@@ -1759,18 +1759,18 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
       // std::cin >>nn;
 
       
-      for(uint i=0; i<path.d0-1; i++)
-      {
-        std::cout << i << std::endl;
-        if(!TP.checkEdge(path[i], time(i), path[i+1], time(i+1)))
-        {
-            // Ошибка: путь содержит коллизии
-            std::cout << "COLLISIA\n";
-        }
-      }
+      // for(uint i=0; i<path.d0-1; i++)
+      // {
+      //   std::cout << i << std::endl;
+      //   if(!TP.checkEdge(path[i], time(i), path[i+1], time(i+1)))
+      //   {
+      //       // Ошибка: путь содержит коллизии
+      //       std::cout << "COLLISIA\n";
+      //   }
+      // }
 
-      std::cout << "NET COLLISIY\n";
-      int aaa;
+      // std::cout << "NET COLLISIY\n";
+      // int aaa;
       // std::cin >> aaa;
       return TimedPath(path, time);
     }
