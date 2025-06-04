@@ -535,46 +535,8 @@ struct PathFinder_SIRRT_Time{
       start_q(i) = start_coords(i);
       end_q(i) = end_coords(i);
     }
-    // std::cout << "check edge " <<  start_time << ' ' << end_time << std::endl;
-    return !TP.checkEdge(start_q, start_time, end_q, end_time, 3); // 3 вообще ни на что не влияет
-
-    // if (start_time >= end_time)
-    // {
-    //     // std::cout << "start_time > end_time" << std::endl;
-    //     return true;
-    // }
-    // Eigen::VectorXd dir_vector = end_coords - start_coords;
-
-    // int interpolation_steps =  (int)(end_time - start_time + 0.5);
-    
-    // // std::cout<<"interpolation_steps: "<<interpolation_steps<<" "<< dir_vector.norm()<<std::endl;
-    // for (int step = 0; step <= interpolation_steps; step++)
-    // {
-
-    //     Eigen::VectorXd temp_coords = start_coords + dir_vector * (double)step / (double)interpolation_steps;
-    //     int time_frame = start_time + (double)(end_time - start_time) * (double)step / (double)interpolation_steps;
-    //     double t = time_frame*dt +this->t_start;
-    //     arr q(temp_coords.size());
-    //     for (int i=0; i<temp_coords.size(); i++)
-    //     {
-    //       q(i) = temp_coords(i);
-    //     }
-    //     if (!TP.query(q, t)->isFeasible)
-    //     {
-    //         // std::cout << "is_collision!!" << std::endl;
-
-    //         return true;
-    //     }
-    // }
-    // return false;
+    return !TP.checkEdge(start_q, start_time, end_q, end_time); // 3 вообще ни на что не влияет
   }
-
-
-  // bool is_collision_state(const arr &q, int &time) // not in use
-  // { 
-  //   return !TP.query(q, time * dt)->isFeasible; 
-  // } //time = frame number here
-
 
   Vertex *get_nearest_node(const Eigen::VectorXd &coords)
   {
