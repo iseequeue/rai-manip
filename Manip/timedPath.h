@@ -17,7 +17,7 @@ struct TimedPath{
 
     for (auto *j: C.activeJoints){
       if (j->type == rai::JT_hingeX || j->type == rai::JT_hingeY|| j->type == rai::JT_hingeZ){
-        periodicDimensions[j->qIndex] = true;
+        periodicDimensions[j->qIndex] = false;// Real robots cant be periodic.
       }
     }
     
@@ -32,14 +32,20 @@ struct TimedPath{
 
   arr getPos(const double t, rai::Configuration &C, const std::vector<bool> &periodicDimensions){
     if (t <= time(0)){
+      std::cout<<"t <= time(0)"<<std::endl;
+      std::cout<<"t: "<<t<<std::endl;
+      std::cout<<"time(0): "<<time(0)<<std::endl;
       return path[0];
     }
     if (t >= time(time.d0-1)){
+      std::cout<<"t >= time(time.d0-1)"<<std::endl;
+      std::cout<<"t: "<<t<<std::endl;
+      std::cout<<"time(time.d0-1): "<<time(time.d0-1)<<std::endl;
       return path[time.d0-1];
     }
 
     for(uint i=0; i<time.N-1; ++i){
-      if (time(i) <= t && t < time(i+1)){
+      if (time(i) <= t && t <= time(i+1)){
         const arr p1 = path[i]();
         const arr p2 = path[i+1]();
         arr delta = p2 - p1;

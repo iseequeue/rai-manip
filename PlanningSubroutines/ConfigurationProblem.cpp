@@ -2,6 +2,12 @@
 #include <Optim/constrained.h>
 #include <fcl/fcl.h>
 #include <fcl/config.h>
+// #include <rapidjson/document.h>
+// #include <rapidjson/writer.h>
+// #include <rapidjson/stringbuffer.h>
+// #include <rapidjson/prettywriter.h>
+// #include <fstream>
+// #include <filesystem>
 
 #include "ConfigurationProblem.h"
 
@@ -331,7 +337,8 @@ shared_ptr<QueryResult> ConfigurationProblem::query(const arr& x, const bool set
     for(uint i=0;i<x.N;i++){
       if(limits(i,1)>limits(i,0) && 
           (x.elem(i)<limits(i,0)*(1+tol) || x.elem(i)>limits(i,1)*(1+tol))){
-        // LOG(-1) <<"QUERY OUT OF LIMIT: joint " <<i <<": " <<x.elem(i) <<' ' <<limits[i];
+        LOG(-1) <<"QUERY OUT OF LIMIT: joint " <<i <<": " <<x.elem(i) <<' ' <<limits[i];
+        std::cout<<"QUERY OUT OF LIMIT"<<std::endl;
         limitsRespected = false;
         break;
       }
@@ -730,32 +737,46 @@ std::vector<std::pair<rai::String,CollObject*>> TimedConfigurationProblem::fcl_o
       }
       bool cant_collide = false;
       for (std::pair<rai::Frame*,CollObject*> &b:this->robot_link_objects){
+        // std::cout<<"robot joint name in can't  collide"<<b.first->name<<std::endl;
+        if(f->name.contains("table")){
+            continue;
+          }
         rai::Frame* c = C.getFrames(TUP(b.first->ID))(0);
         if (!(f->getShape().canCollideWith(c))) {
+          // std::cout<<"robot joint name in can't collide"<<b.first->name<<" and "<<f->name<<std::endl;
           cant_collide = true;
           break;
         }
 
         // Skip if one of the objects is an object we move.
         // Otherwise some collision with the table will be ignored.
-        if (f->name.contains("obj") || c->name.contains("obj")){
-          break;
-        }
+        // if (f->name.contains("obj") || c->name.contains("obj")){
+        //   cant_collide = true;
+        //   break;
+        // }
 
         if (c == f->parent || f == c->parent) {
+          if (f->name.contains("table") && c->name.contains("obj")){
+            break;
+          }
           cant_collide = true;
           break;
         }
-        // if (c == f->getUpwardLink() || f == c->getDownwardLink()) {
-          // cant_collide = true;
-          // break;
-        // }
+        if (c == f->getUpwardLink() || f == c->getDownwardLink()) {
+          if (f->name.contains("table") && c->name.contains("obj")){
+            break;
+          }
+          cant_collide = true;
+          break;
+        }
     }
     if (cant_collide){
+      // std::cout<<"name, that cant collide: "<<f->name<<std::endl;
       continue;
     }
       if(f->shape && f->shape->cont) {
         if(!f->shape->mesh().V.N) f->shape->createMeshes();
+
         frs.push_back(f);
         geometries.push_back(frs.back()->shape);
         geometries_id.push_back(frs.back()->ID);
@@ -792,7 +813,7 @@ std::vector<std::pair<rai::String,CollObject*>> TimedConfigurationProblem::fcl_o
 
           const auto model = make_shared<fcl::Sphere<float>>(mesh.getRadius());
         }
-        CollObject* obj = new CollObject(geom, fcl::Transform3f());
+        CollObject* obj = new CollObject(geom);
         obj->setTranslation(Vec3f(X(geometries_id[i], 0), X(geometries_id[i], 1), X(geometries_id[i], 2)));
         obj->setQuatRotation(Quaternionf(X(geometries_id[i], 3), X(geometries_id[i], 4), X(geometries_id[i], 5), X(geometries_id[i], 6)));
         obj->computeAABB();
@@ -818,7 +839,13 @@ std::vector<std::pair<rai::Frame*,CollObject*>> TimedConfigurationProblem::fcl_r
 
         continue;
       }
+      // if (f->name.contains("obj")) {
+      //   continue;
+      // }
+
       if(f->shape && f->shape->cont) {
+        // std::cout<<"robot joint name "<<f->name<<std::endl;
+        
         if(!f->shape->mesh().V.N) f->shape->createMeshes();
         geometries.push_back(f->shape);
         geometries_id.push_back(f->ID);
@@ -856,7 +883,7 @@ std::vector<std::pair<rai::Frame*,CollObject*>> TimedConfigurationProblem::fcl_r
 
           const auto model = make_shared<fcl::Sphere<float>>(mesh.getRadius());
         }
-        CollObject* obj = new CollObject(geom, fcl::Transform3f());
+        CollObject* obj = new CollObject(geom);
         obj->setTranslation(Vec3f(X(geometries_id[i], 0), X(geometries_id[i], 1), X(geometries_id[i], 2)));
         obj->setQuatRotation(Quaternionf(X(geometries_id[i], 3), X(geometries_id[i], 4), X(geometries_id[i], 5), X(geometries_id[i], 6)));
         obj->computeAABB();
@@ -899,7 +926,7 @@ std::pair<rai::String,CollObject*> TimedConfigurationProblem::create_obstacle_fc
 
     const auto model = make_shared<fcl::Sphere<float>>(mesh.getRadius());
   }
-  CollObject* obj = new CollObject(geom, fcl::Transform3f());
+  CollObject* obj = new CollObject(geom);
   obj->setTranslation(Vec3f(frame->X.pos.x, frame->X.pos.y, frame->X.pos.z));
   obj->setQuatRotation(Quaternionf(frame->X.rot.w, frame->X.rot.x, frame->X.rot.y, frame->X.rot.z));
   obj->computeAABB();
@@ -924,7 +951,7 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
 
   //destructor
   if(collision_manager_was_initialised){
-    std::cout<<"destructor"<<std::endl;
+    // std::cout<<"destructor"<<std::endl;
     for(int col_id =0; col_id<this->collision_objects.size();col_id++){
       delete (std::pair<double*,rai::String>*) (this->collision_objects[col_id]->getUserData());
       delete this->collision_objects[col_id];
@@ -950,7 +977,7 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
 
   uint number_of_frames = this->max_time-this->min_time+1;
 
-  std::cout<<"number_of_frames "<<number_of_frames<<std::endl;
+  // std::cout<<"number_of_frames "<<number_of_frames<<std::endl;
 
 
   // for(int i=A.d0-1; i>=0; --i){
@@ -985,7 +1012,11 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
   for (int frame_number=0;frame_number<number_of_frames;frame_number++){
     ConfigurationProblem conf = this->getConfigurationProblemAtTime(this->min_time+frame_number);
     std::vector<std::pair<rai::String,CollObject*>> obstacles =  this->fcl_obstacles(conf.C);
-    
+    // for( auto obs:obstacles){
+    //     std::cout<<"name, to be added to fcl "<<obs.first<<std::endl;
+    //     // std::cout<<obs.second->getTranslation()<<std::endl;
+        
+    // }
     this->time_marks.push_back(new double(this->min_time+frame_number));
     // std::cout<<"obstacles "<<obstacles.size()<<std::endl;
     
@@ -1016,13 +1047,488 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
     this->robot_link_objects[robot_joint_id].second->setUserData((void*)(new std::pair<double*,rai::Frame*>(this->time_marks.back(),this->robot_link_objects[robot_joint_id].first)));
   }
 
-
+  // // Export FCL objects to JSON for Blender visualization using rapidjson
+  // rapidjson::Document document;
+  // document.SetObject();
+  // rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
+  
+  // // Create obstacle and robot arrays
+  // rapidjson::Value obstaclesArray(rapidjson::kArrayType);
+  // rapidjson::Value robotsArray(rapidjson::kArrayType);
+  
+  // // Export obstacles
+  // for(size_t i = 0; i < this->collision_objects.size(); i++) {
+  //   CollObject* obj = this->collision_objects[i];
+  //   std::pair<double*, rai::String>* userData = static_cast<std::pair<double*, rai::String>*>(obj->getUserData());
+  //   double time = *(userData->first);
+  //   std::string name = userData->second.p;
+    
+  //   rapidjson::Value obstacle(rapidjson::kObjectType);
+    
+  //   // Add name
+  //   rapidjson::Value nameValue;
+  //   nameValue.SetString(name.c_str(), name.length(), allocator);
+  //   obstacle.AddMember("name", nameValue, allocator);
+    
+  //   // Add time
+  //   obstacle.AddMember("time", time, allocator);
+    
+  //   // Export translation
+  //   Vec3f translation = obj->getTranslation();
+  //   rapidjson::Value position(rapidjson::kArrayType);
+  //   position.PushBack(translation[0], allocator);
+  //   position.PushBack(translation[1], allocator);
+  //   position.PushBack(translation[2], allocator);
+  //   obstacle.AddMember("position", position, allocator);
+    
+  //   // Export rotation
+  //   Quaternionf rotation = obj->getQuatRotation();
+  //   rapidjson::Value rotationArray(rapidjson::kArrayType);
+  //   rotationArray.PushBack(rotation.w(), allocator);
+  //   rotationArray.PushBack(rotation.x(), allocator);
+  //   rotationArray.PushBack(rotation.y(), allocator);
+  //   rotationArray.PushBack(rotation.z(), allocator);
+  //   obstacle.AddMember("rotation", rotationArray, allocator);
+    
+  //   // Export geometry type
+  //   auto geom = obj->collisionGeometry();
+  //   obstacle.AddMember("geometry_type", geom->getNodeType(), allocator);
+    
+  //   // Handle different geometry types
+  //   rapidjson::Value geometry(rapidjson::kObjectType);
+    
+  //   if (geom->getNodeType() == fcl::GEOM_BOX) {
+  //     const Box* box = static_cast<const Box*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("box", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     rapidjson::Value sizeArray(rapidjson::kArrayType);
+  //     sizeArray.PushBack(box->side[0], allocator);
+  //     sizeArray.PushBack(box->side[1], allocator);
+  //     sizeArray.PushBack(box->side[2], allocator);
+  //     geometry.AddMember("size", sizeArray, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_SPHERE) {
+  //     const Sphere* sphere = static_cast<const Sphere*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("sphere", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", sphere->radius, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CAPSULE) {
+  //     const Capsule* capsule = static_cast<const Capsule*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("capsule", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", capsule->radius, allocator);
+  //     geometry.AddMember("height", capsule->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CYLINDER) {
+  //     const Cylinder* cylinder = static_cast<const Cylinder*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("cylinder", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", cylinder->radius, allocator);
+  //     geometry.AddMember("height", cylinder->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CONVEX) {
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("convex", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+  //     // Would need to extract vertices and faces for complete export
+  //   }
+    
+  //   obstacle.AddMember("geometry", geometry, allocator);
+  //   obstaclesArray.PushBack(obstacle, allocator);
+  // }
+  
+  // // Export robot links
+  // for(size_t i = 0; i < this->robot_link_objects.size(); i++) {
+  //   CollObject* obj = this->robot_link_objects[i].second;
+  //   rai::Frame* frame = this->robot_link_objects[i].first;
+    
+  //   rapidjson::Value robot(rapidjson::kObjectType);
+    
+  //   // Add name
+  //   rapidjson::Value nameValue;
+  //   nameValue.SetString(frame->name.p, frame->name.N, allocator);
+  //   robot.AddMember("name", nameValue, allocator);
+    
+  //   // Add time (-1 for robot links as they aren't time-dependent)
+  //   robot.AddMember("time", -1, allocator);
+    
+  //   // Export position
+  //   Vec3f translation = obj->getTranslation();
+  //   rapidjson::Value position(rapidjson::kArrayType);
+  //   position.PushBack(translation[0], allocator);
+  //   position.PushBack(translation[1], allocator);
+  //   position.PushBack(translation[2], allocator);
+  //   robot.AddMember("position", position, allocator);
+    
+  //   // Export rotation
+  //   Quaternionf rotation = obj->getQuatRotation();
+  //   rapidjson::Value rotationArray(rapidjson::kArrayType);
+  //   rotationArray.PushBack(rotation.w(), allocator);
+  //   rotationArray.PushBack(rotation.x(), allocator);
+  //   rotationArray.PushBack(rotation.y(), allocator);
+  //   rotationArray.PushBack(rotation.z(), allocator);
+  //   robot.AddMember("rotation", rotationArray, allocator);
+    
+  //   // Export geometry type
+  //   auto geom = obj->collisionGeometry();
+  //   robot.AddMember("geometry_type", geom->getNodeType(), allocator);
+    
+  //   // Handle different geometry types (same as for obstacles)
+  //   rapidjson::Value geometry(rapidjson::kObjectType);
+    
+  //   if (geom->getNodeType() == fcl::GEOM_BOX) {
+  //     const Box* box = static_cast<const Box*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("box", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     rapidjson::Value sizeArray(rapidjson::kArrayType);
+  //     sizeArray.PushBack(box->side[0], allocator);
+  //     sizeArray.PushBack(box->side[1], allocator);
+  //     sizeArray.PushBack(box->side[2], allocator);
+  //     geometry.AddMember("size", sizeArray, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_SPHERE) {
+  //     const Sphere* sphere = static_cast<const Sphere*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("sphere", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", sphere->radius, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CAPSULE) {
+  //     const Capsule* capsule = static_cast<const Capsule*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("capsule", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", capsule->radius, allocator);
+  //     geometry.AddMember("height", capsule->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CYLINDER) {
+  //     const Cylinder* cylinder = static_cast<const Cylinder*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("cylinder", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", cylinder->radius, allocator);
+  //     geometry.AddMember("height", cylinder->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CONVEX) {
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("convex", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+  //     // Would need to extract vertices and faces for complete export
+  //   }
+    
+  //   robot.AddMember("geometry", geometry, allocator);
+  //   robotsArray.PushBack(robot, allocator);
+  // }
+  
+  // // Add arrays to document
+  // document.AddMember("obstacles", obstaclesArray, allocator);
+  // document.AddMember("robots", robotsArray, allocator);
+  
+  // // Create the output directory if it doesn't exist
+  // std::filesystem::create_directories("fcl_export");
+  
+  // // Write to file with pretty printing
+  // rapidjson::StringBuffer buffer;
+  // rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+  // document.Accept(writer);
+  
+  // std::ofstream file("fcl_export/scene.json");
+  // file << buffer.GetString();
+  // file.close();
+  
+  // std::cout << "Exported FCL scene to fcl_export/scene.json" << std::endl;
 }
 
 std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_intervals(const arr& x){
   std::vector<std::pair<double,double>> results;
   
   C.setJointState(x);//set joint pos
+  
+  // // Export current scene state to JSON - using the same format as init_safe_interval_collisison_check
+  // rapidjson::Document document;
+  // document.SetObject();
+  // rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
+  
+  // // Create obstacle and robot arrays (same structure as in init_safe_interval_collisison_check)
+  // rapidjson::Value obstaclesArray(rapidjson::kArrayType);
+  // rapidjson::Value robotsArray(rapidjson::kArrayType);
+  
+  // // Get the obstacles (non-actuated frames with shapes)
+  // std::vector<std::pair<rai::String,CollObject*>> obstacles = this->fcl_obstacles(C);
+  
+  // // Export obstacles
+  // for(auto& obs : obstacles) {
+  //   CollObject* obj = obs.second;
+  //   std::string name = obs.first.p;
+    
+  //   rapidjson::Value obstacle(rapidjson::kObjectType);
+    
+  //   // Add name
+  //   rapidjson::Value nameValue;
+  //   nameValue.SetString(name.c_str(), name.length(), allocator);
+  //   obstacle.AddMember("name", nameValue, allocator);
+    
+  //   // Add time (current state)
+  //   obstacle.AddMember("time", 0, allocator);
+    
+  //   // Export translation
+  //   Vec3f translation = obj->getTranslation();
+  //   rapidjson::Value position(rapidjson::kArrayType);
+  //   position.PushBack(translation[0], allocator);
+  //   position.PushBack(translation[1], allocator);
+  //   position.PushBack(translation[2], allocator);
+  //   obstacle.AddMember("position", position, allocator);
+    
+  //   // Export rotation
+  //   Quaternionf rotation = obj->getQuatRotation();
+  //   rapidjson::Value rotationArray(rapidjson::kArrayType);
+  //   rotationArray.PushBack(rotation.w(), allocator);
+  //   rotationArray.PushBack(rotation.x(), allocator);
+  //   rotationArray.PushBack(rotation.y(), allocator);
+  //   rotationArray.PushBack(rotation.z(), allocator);
+  //   obstacle.AddMember("rotation", rotationArray, allocator);
+    
+  //   // Export geometry type
+  //   auto geom = obj->collisionGeometry();
+  //   obstacle.AddMember("geometry_type", geom->getNodeType(), allocator);
+    
+  //   // Handle different geometry types
+  //   rapidjson::Value geometry(rapidjson::kObjectType);
+    
+  //   if (geom->getNodeType() == fcl::GEOM_BOX) {
+  //     const Box* box = static_cast<const Box*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("box", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     rapidjson::Value sizeArray(rapidjson::kArrayType);
+  //     sizeArray.PushBack(box->side[0], allocator);
+  //     sizeArray.PushBack(box->side[1], allocator);
+  //     sizeArray.PushBack(box->side[2], allocator);
+  //     geometry.AddMember("size", sizeArray, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_SPHERE) {
+  //     const Sphere* sphere = static_cast<const Sphere*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("sphere", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", sphere->radius, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CAPSULE) {
+  //     const Capsule* capsule = static_cast<const Capsule*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("capsule", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", capsule->radius, allocator);
+  //     geometry.AddMember("height", capsule->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CYLINDER) {
+  //     const Cylinder* cylinder = static_cast<const Cylinder*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("cylinder", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", cylinder->radius, allocator);
+  //     geometry.AddMember("height", cylinder->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CONVEX) {
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("convex", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+  //     // Would need to extract vertices and faces for complete export
+  //   }
+    
+  //   obstacle.AddMember("geometry", geometry, allocator);
+  //   obstaclesArray.PushBack(obstacle, allocator);
+    
+  //   // Clean up the temporary obstacle object
+  //   delete obj;
+  // }
+  
+  // // Export robot links (actuated frames)
+  // std::vector<std::pair<rai::Frame*,CollObject*>> robotLinks = this->fcl_robots(C);
+  
+  // for(auto& robot_pair : robotLinks) {
+  //   rai::Frame* frame = robot_pair.first;
+  //   CollObject* obj = robot_pair.second;
+    
+  //   rapidjson::Value robot(rapidjson::kObjectType);
+    
+  //   // Add name
+  //   rapidjson::Value nameValue;
+  //   nameValue.SetString(frame->name.p, frame->name.N, allocator);
+  //   robot.AddMember("name", nameValue, allocator);
+    
+  //   // Add time (-1 for robot links as they aren't time-dependent)
+  //   robot.AddMember("time", -1, allocator);
+    
+  //   // Export position
+  //   Vec3f translation = obj->getTranslation();
+  //   rapidjson::Value position(rapidjson::kArrayType);
+  //   position.PushBack(translation[0], allocator);
+  //   position.PushBack(translation[1], allocator);
+  //   position.PushBack(translation[2], allocator);
+  //   robot.AddMember("position", position, allocator);
+    
+  //   // Export rotation
+  //   Quaternionf rotation = obj->getQuatRotation();
+  //   rapidjson::Value rotationArray(rapidjson::kArrayType);
+  //   rotationArray.PushBack(rotation.w(), allocator);
+  //   rotationArray.PushBack(rotation.x(), allocator);
+  //   rotationArray.PushBack(rotation.y(), allocator);
+  //   rotationArray.PushBack(rotation.z(), allocator);
+  //   robot.AddMember("rotation", rotationArray, allocator);
+    
+  //   // Export joint data (additional data not in init_safe_interval_collisison_check)
+  //   if(frame->joint && frame->joint->active) {
+  //     rapidjson::Value jointData(rapidjson::kObjectType);
+      
+  //     // Joint index
+  //     jointData.AddMember("qIndex", frame->joint->qIndex, allocator);
+      
+  //     // Joint type
+  //     const char* jointTypeName = "";
+  //     switch(frame->joint->type) {
+  //       case rai::JT_hingeX: jointTypeName = "hingeX"; break;
+  //       case rai::JT_hingeY: jointTypeName = "hingeY"; break;
+  //       case rai::JT_hingeZ: jointTypeName = "hingeZ"; break;
+  //       case rai::JT_transX: jointTypeName = "transX"; break;
+  //       case rai::JT_transY: jointTypeName = "transY"; break;
+  //       case rai::JT_transZ: jointTypeName = "transZ"; break;
+  //       case rai::JT_transXY: jointTypeName = "transXY"; break;
+  //       case rai::JT_trans3: jointTypeName = "trans3"; break;
+  //       case rai::JT_transXYPhi: jointTypeName = "transXYPhi"; break;
+  //       case rai::JT_quatBall: jointTypeName = "quatBall"; break;
+  //       case rai::JT_free: jointTypeName = "free"; break;
+  //       case rai::JT_rigid: jointTypeName = "rigid"; break;
+  //       default: jointTypeName = "unknown";
+  //     }
+      
+  //     rapidjson::Value jointTypeValue;
+  //     jointTypeValue.SetString(jointTypeName, allocator);
+  //     jointData.AddMember("type", jointTypeValue, allocator);
+      
+  //     // Joint angle if available
+  //     if(frame->joint->qDim() > 0 && frame->joint->qIndex >= 0 && frame->joint->qIndex < x.N) {
+  //       double angle = x(frame->joint->qIndex);
+  //       jointData.AddMember("angle", angle, allocator);
+  //     }
+      
+  //     robot.AddMember("joint", jointData, allocator);
+  //   }
+    
+  //   // Export geometry type
+  //   auto geom = obj->collisionGeometry();
+  //   robot.AddMember("geometry_type", geom->getNodeType(), allocator);
+    
+  //   // Handle different geometry types (same as for obstacles)
+  //   rapidjson::Value geometry(rapidjson::kObjectType);
+    
+  //   if (geom->getNodeType() == fcl::GEOM_BOX) {
+  //     const Box* box = static_cast<const Box*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("box", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     rapidjson::Value sizeArray(rapidjson::kArrayType);
+  //     sizeArray.PushBack(box->side[0], allocator);
+  //     sizeArray.PushBack(box->side[1], allocator);
+  //     sizeArray.PushBack(box->side[2], allocator);
+  //     geometry.AddMember("size", sizeArray, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_SPHERE) {
+  //     const Sphere* sphere = static_cast<const Sphere*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("sphere", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", sphere->radius, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CAPSULE) {
+  //     const Capsule* capsule = static_cast<const Capsule*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("capsule", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", capsule->radius, allocator);
+  //     geometry.AddMember("height", capsule->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CYLINDER) {
+  //     const Cylinder* cylinder = static_cast<const Cylinder*>(geom.get());
+      
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("cylinder", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+      
+  //     geometry.AddMember("radius", cylinder->radius, allocator);
+  //     geometry.AddMember("height", cylinder->lz, allocator);
+  //   }
+  //   else if (geom->getNodeType() == fcl::GEOM_CONVEX) {
+  //     rapidjson::Value typeValue;
+  //     typeValue.SetString("convex", allocator);
+  //     geometry.AddMember("type", typeValue, allocator);
+  //     // Would need to extract vertices and faces for complete export
+  //   }
+    
+  //   robot.AddMember("geometry", geometry, allocator);
+  //   robotsArray.PushBack(robot, allocator);
+    
+  //   // Clean up the temporary robot object
+  //   delete obj;
+  // }
+  
+  // // Add arrays to document
+  // document.AddMember("obstacles", obstaclesArray, allocator);
+  // document.AddMember("robots", robotsArray, allocator);
+  
+  // // Create the output directory if it doesn't exist
+  // std::filesystem::create_directories("fcl_export");
+  
+  // // Generate a unique filename with timestamp
+  // std::string timestamp = std::to_string(time(nullptr));
+  // std::string filename = "fcl_export/safe_intervals_" + timestamp + ".json";
+  
+  // // Write to file with pretty printing
+  // rapidjson::StringBuffer buffer;
+  // rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+  // document.Accept(writer);
+  
+  // std::ofstream file(filename);
+  // file << buffer.GetString();
+  // file.close();
+  
+  // std::cout << "Exported current scene state to " << filename << std::endl;
   
   // check collision with static obstacles
   // if(this->collision_with_static()){
@@ -1031,12 +1537,36 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
   //update robot link objects pos
 
   // assert(C.activeJoints.N == this->robot_link_objects.size());
+    // std::cout<<"Robot joint pos"<<std::endl;
+
   for(int joint_id=0;joint_id<this->robot_link_objects.size();joint_id++){
+    // std::cout<<Vec3f(this->robot_link_objects[joint_id].first->X.pos.x, this->robot_link_objects[joint_id].first->X.pos.y,this->robot_link_objects[joint_id].first->X.pos.z)<<std::endl;
     this->robot_link_objects[joint_id].first->ensure_X();
     this->robot_link_objects[joint_id].second->setTranslation(Vec3f(this->robot_link_objects[joint_id].first->X.pos.x, this->robot_link_objects[joint_id].first->X.pos.y,this->robot_link_objects[joint_id].first->X.pos.z));
     this->robot_link_objects[joint_id].second->setQuatRotation(Quaternionf(this->robot_link_objects[joint_id].first->X.rot.w,this->robot_link_objects[joint_id].first->X.rot.x,this->robot_link_objects[joint_id].first->X.rot.y,this->robot_link_objects[joint_id].first->X.rot.z));
     this->robot_link_objects[joint_id].second->computeAABB();
   }
+
+  // check for the selfcollision
+  for (int robot_joint_id = 0; robot_joint_id < this->robot_link_objects.size(); robot_joint_id++)
+  {
+    for (int another_robot_joint_id = robot_joint_id+1; another_robot_joint_id < this->robot_link_objects.size(); another_robot_joint_id++)
+    {
+      if ((!this->robot_link_objects[another_robot_joint_id].first->shape->canCollideWith(this->robot_link_objects[robot_joint_id].first))){
+        continue;
+      }
+      CollisionRequest request;
+      CollisionResult result;
+      fcl::collide(this->robot_link_objects[robot_joint_id].second, this->robot_link_objects[another_robot_joint_id].second, request, result);
+      if (result.isCollision())
+      {
+        // std::cout<<"Collision between "<<this->robot_link_objects[robot_joint_id].first->name<<" and "<<this->robot_link_objects[another_robot_joint_id].first->name<<std::endl;
+        return results;
+      }
+    }
+  } 
+
+
   //collide
   this->collision_moments.clear();
   
@@ -1048,7 +1578,7 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
     // {
     //   std::cout<< "Collision_frame "<<collision_frame<<std::endl;
     // }
-    //compute safe intervals
+    // compute safe intervals
 
     if (collision_moments.size() == 0)
     {
@@ -1060,7 +1590,7 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
     std::sort(collision_moments.begin(), collision_moments.end());
     collision_moments.erase(std::unique(collision_moments.begin(), collision_moments.end()), collision_moments.end());
 
-    int last_collision_frame = -1;
+    int last_collision_frame = this->min_time-1;
     for (const int collision_frame : collision_moments)
     {
         if ((collision_frame - last_collision_frame) > 1)
@@ -1090,10 +1620,7 @@ bool TimedConfigurationProblem::BroadphaseCallback(CollObject* o1, CollObject* o
   CollisionResult result;
   fcl::collide(o1, o2, request, result);
   if(result.isCollision()) {
-    // std::cout<<"Collision between"<<std::endl;
-    // std::cout<<((std::pair<double*,rai::String>*)(o1->getUserData()))->second<<" "<<o1->getNodeType()<<std::endl;
-    // std::cout<<((std::pair<double*,rai::Frame*>*)(o2->getUserData()))->second->name<<" "<<o2->getNodeType()<<std::endl;
-    
+
     double d1,d2,d3;
     d1 = *((double*)(((std::pair<double*,rai::Frame*>*)(o1->getUserData()))->first));
     d2 = *((double*)(((std::pair<double*,rai::Frame*>*)(o2->getUserData()))->first));
@@ -1101,12 +1628,18 @@ bool TimedConfigurationProblem::BroadphaseCallback(CollObject* o1, CollObject* o
     if(d1 < 0){
       d3 = d2;
     }
+
+    // std::cout<<"Collision between"<<std::endl;
+    // std::cout<<((std::pair<double*,rai::String>*)(o1->getUserData()))->second<<" "<<d1<<std::endl;
+    // std::cout<<((std::pair<double*,rai::Frame*>*)(o2->getUserData()))->second->name<<" "<<d2<<std::endl;
+    
+    
   
     // fcl::DistanceRequest<float> requestd;
     // fcl::DistanceResult<float> resultd;
     // fcl::distance(o1, o2, requestd, resultd);
     // std::cout<<"Distance: "<<resultd.min_distance<<std::endl;
-    // self->collision_moments.push_back(d3);
+    self->collision_moments.push_back(d3);
 
 
     
