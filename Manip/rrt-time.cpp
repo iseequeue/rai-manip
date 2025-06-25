@@ -32,7 +32,7 @@ arr PathFinder_RRT_Time::getDelta(const arr &p1, const arr &p2){
 }
 
 double PathFinder_RRT_Time::q_metric(const arr& d) const{
-#if 1
+#if 0
   double dist = 0;
   for (auto *j: TP.C.activeJoints){
     //double tmp = length(d({j->qIndex, j->qIndex+j->dim-1}));
@@ -311,6 +311,7 @@ Node* PathFinder_RRT_Time::extend(Tree* tree, const Node &goal, const bool conne
 
 TimedPath PathFinder_RRT_Time::plan(const arr &q0, const double t0, const TimedGoalSampler gs, double tGoalLowerBound, double tGoalUpperBound){
   const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 
+  this->vmax = 0.25;
 
   //auto start_rrt_time = std::chrono::high_resolution_clock::now();
 
@@ -991,12 +992,12 @@ std::vector<Vertex *> PathFinder_SIRRT_Time::set_parent(Eigen::VectorXd &coord_r
         {
             // std::cout<<"safe_int: "<<safe_int.first<<" "<<safe_int.second<<std::endl;
             // if we can't reach goal from that interval - skip
-            if ((safe_int.first + time_to_goal) >= this->t_max)
-            {
-                // std::cout<<"safe_int.first + time_to_goal >= this->t_max"<<std::endl;
-                safe_interval_ind++;
-                continue;
-            }
+            // if ((safe_int.first + time_to_goal) >= this->t_max)
+            // {
+            //     // std::cout<<"safe_int.first + time_to_goal >= this->t_max"<<std::endl;
+            //     safe_interval_ind++;
+            //     continue;
+            // }
             bool found_parent = false;
 
             // for each parent
@@ -1543,12 +1544,21 @@ bool PathFinder_SIRRT_Time::check_planner_termination_condition() const
 }
 
 TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr &q_goal, const double &t_up){
-  this->TP.min_time = t0;
   std::cout << "t0 " << t0 << std::endl;
   std::cout << "t_up " << t_up << std::endl;
+  this->TP.min_time = t0;
+  this->TP.max_time = t_up;
 
-  this->TP.max_time = t_up;  
+  this->vmax = 0.25;
+
+  const auto rrt_start_time = std::chrono::high_resolution_clock::now(); 
+
   this->TP.init_safe_interval_collisison_check(q0,t0,t_up);
+
+  const auto rrt_end_time = std::chrono::high_resolution_clock::now();
+  const auto rrt_duration = std::chrono::duration_cast<std::chrono::milliseconds>(rrt_end_time - rrt_start_time).count();
+
+  this->init_time = rrt_duration;
   
   std::cout << "РАЗМЕРНОСТЬ " << q0.N << std::endl;
   const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 
@@ -1598,7 +1608,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     }
 
     this->goal_safe_intervals = this->get_safe_intervals(q_goal_coords);
-    if (goal_safe_intervals.size() ==0){
+    if (goal_safe_intervals.size() == 0){
       spdlog::error("safe_intervals is empty in the goal point");
       // TP.C.watch(true);
       return TimedPath({}, {});
@@ -1657,7 +1667,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
         //   std::cout<<"goal tree"<<std::endl;
         // }
         v_count++;
-        std::cout<< v_count << " " << this->start_tree->array_of_vertices.size() << " " << this->goal_tree->array_of_vertices.size() <<  std::endl;
+        // std::cout<< v_count << " " << this->start_tree->array_of_vertices.size() << " " << this->goal_tree->array_of_vertices.size() <<  std::endl;
         Eigen::VectorXd coord_rand(this->dimensionality);
   
         arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);

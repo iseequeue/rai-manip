@@ -1706,6 +1706,7 @@ bool TimedConfigurationProblem::checkEdge(const arr& x0, const double t0, const 
   if (samples < 5) { samples = 2;}
 
   samples = std::ceil(std::abs(t0 - t1));
+  // if (samples == 0 ) return true; // i changed it
   
   const double tMin = (t0 < t1) ? t0: t1;
 

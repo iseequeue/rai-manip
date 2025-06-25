@@ -13,11 +13,11 @@ struct TimedPath{
   TimedPath(const arr &_path, const arr &_time): path(_path), time(_time){};
 
   arr resample(const arr &times, rai::Configuration &C){
-    auto periodicDimensions = std::vector<bool>(C.getJointState().N, false);
+    auto periodicDimensions = std::vector<bool>(C.getJointState().N, true); // changed by us
 
     for (auto *j: C.activeJoints){
       if (j->type == rai::JT_hingeX || j->type == rai::JT_hingeY|| j->type == rai::JT_hingeZ){
-        periodicDimensions[j->qIndex] = false;// Real robots cant be periodic.
+        periodicDimensions[j->qIndex] = true;// Real robots cant be periodic. CHANGED BY US , originally true
       }
     }
     

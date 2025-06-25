@@ -370,7 +370,7 @@ using TimedGoalSampler = std::function<void (const double, arr&)>;
 struct PathFinder_RRT_Time{
   TimedConfigurationProblem &TP;
 
-  double vmax = .1;
+  double vmax = .2;
   double lambda = .9;
   double step_time = 1;
 
@@ -589,6 +589,9 @@ struct PathFinder_SIRRT_Time{
 
   bool stop_when_path_found = true;  
   float max_planning_time = 15; //in seconds
+
+  double init_time = 0.0;
+  double get_init_time(){return init_time;}
 
   //==============================================================
   // На каждом плане свои
