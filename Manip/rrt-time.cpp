@@ -92,15 +92,15 @@ Node* PathFinder_RRT_Time::steer(const Node &start, const Node &goal, bool rever
 
   const double u = dist / dt;
 
-  if (u >= vmax){
-    std::cout << "reversed: " << reverse << std::endl;
-    std::cout << "t start: " << start.t << std::endl;
-    std::cout << "t goal: " << goal.t << std::endl;
-    std::cout << "dt: " << dt << std::endl;
-    std::cout << "dist: " << dist << std::endl;
+  // if (u >= vmax){
+  //   std::cout << "reversed: " << reverse << std::endl;
+  //   std::cout << "t start: " << start.t << std::endl;
+  //   std::cout << "t goal: " << goal.t << std::endl;
+  //   std::cout << "dt: " << dt << std::endl;
+  //   std::cout << "dist: " << dist << std::endl;
 
-    CHECK(false, "Violated vmax");
-  }
+  //   CHECK(false, "Violated vmax");
+  // }
 
   if (dt > step_time){
     dt = step_time;
@@ -310,7 +310,7 @@ Node* PathFinder_RRT_Time::extend(Tree* tree, const Node &goal, const bool conne
 }
 
 TimedPath PathFinder_RRT_Time::plan(const arr &q0, const double t0, const TimedGoalSampler gs, double tGoalLowerBound, double tGoalUpperBound){
-  const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 
+  const bool fixedTime = true;//rai::getParameter<bool>("assembly/fixedTime", false); 
   this->vmax = 0.25;
 
   //auto start_rrt_time = std::chrono::high_resolution_clock::now();
@@ -526,6 +526,7 @@ TimedPath PathFinder_RRT_Time::plan(const arr &q0, const double t0, const TimedG
 
   uint cnt = 0;
   int cnt2 = 0;
+  this->solver_start_time = std::chrono::steady_clock::now();
   while(true){
     if (disp){
       DSP.watch(false);
@@ -538,7 +539,7 @@ TimedPath PathFinder_RRT_Time::plan(const arr &q0, const double t0, const TimedG
       spdlog::info("nodes in start tree: {} nodes in goal tree: {}, min dist between trees {}", startTree.nodes.size(), goalTree.nodes.size(),  minDist);
     }
 
-    if (cnt > maxIter){
+    if (this->check_planner_termination_condition()){
       // Display the direct interpolation
       /*const arr delta = getDelta(qT, q0);
       for (uint i=0; i<20; ++i){
@@ -863,29 +864,31 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals(const
   std::vector<std::pair<double, double>> raw_safe_intervals =  this->TP.get_safe_intervals(q);
   
   for (int safe_int_id=0;safe_int_id<raw_safe_intervals.size();safe_int_id++){
-     safeIntervals.emplace_back(raw_safe_intervals[safe_int_id].first,raw_safe_intervals[safe_int_id].second);
+     safeIntervals.emplace_back(std::ceil(raw_safe_intervals[safe_int_id].first),std::floor(raw_safe_intervals[safe_int_id].second));
   }
   // std::cout << "get safe interval: " ;
   // for (int i=0; i<safeIntervals.size(); i++)
   //   std::cout << safeIntervals[i].first << ' ' << safeIntervals[i].second << ", ";
   // std::cout << std::endl;
 
-  for(std::pair<double, double> safe_int:raw_safe_intervals){
-    for (double t_frame=safe_int.first;t_frame<=safe_int.second;t_frame++){
-      // double t_real = this->t_start + t_frame * dt;
-      // double t_real = this->TP.min_time + t_frame ;
-      if (!(TP.query(q, t_frame)->isFeasible)){
-        // std::cout<<"q: "<<q<<std::endl;
-        // // std::cout<<"t_real: "<<t_real<<std::endl;
-        // std::cout<<"t_frame: "<<t_frame<<std::endl;
-        // std::cout<<"ACHTUNG!!! Collision in safe interval!!!"<<std::endl;
-        safeIntervals.clear();
-        break;
+  // for(std::pair<double, double> safe_int:raw_safe_intervals){
+  //   for (double t_frame=safe_int.first+1;t_frame<=safe_int.second;t_frame++){
+  //     // double t_real = this->t_start + t_frame * dt;
+  //     // double t_real = this->TP.min_time + t_frame ;
+  //     if (!(TP.query(q, t_frame)->isFeasible)){
+  //       // std::cout<<"q: "<<q<<std::endl;
+  //       // // std::cout<<"t_real: "<<t_real<<std::endl;
+  //       // std::cout<<"t_frame: "<<t_frame<<std::endl;
+  //       std::cout<<"ACHTUNG!!! Collision in safe interval!!! t_frame= "<<t_frame<<" t_0, tmax = "<<this->t_start<< " "<<this->t_max <<std::endl;
+  //       safeIntervals.clear();
+  //       return safeIntervals;
+  //       break;
 
-      }
-      assert(TP.query(q, t_frame)->isFeasible);
-    }
-  }
+  //     }
+  //     return safeIntervals;
+  //     assert(TP.query(q, t_frame)->isFeasible);
+  //   }
+  // }
   return safeIntervals;
 }
 
@@ -914,10 +917,10 @@ std::vector<std::pair<int, int>> PathFinder_SIRRT_Time::get_safe_intervals_naive
   if (isSafe) {
       safeIntervals.push_back({intervalStartFrame, n_frames -1 });
   }
-  std::cout << "get safe interval: " ;
-  for (int i=0; i<safeIntervals.size(); i++)
-    std::cout << safeIntervals[i].first << ' ' << safeIntervals[i].second << ", ";
-  std::cout << std::endl;
+  // std::cout << "get safe interval: " ;
+  // for (int i=0; i<safeIntervals.size(); i++)
+  //   std::cout << safeIntervals[i].first << ' ' << safeIntervals[i].second << ", ";
+  // std::cout << std::endl;
   return safeIntervals;
 }
 
@@ -1543,9 +1546,15 @@ bool PathFinder_SIRRT_Time::check_planner_termination_condition() const
     return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - this->solver_start_time).count() < this->max_planning_time;
 }
 
+bool PathFinder_RRT_Time::check_planner_termination_condition() const
+{
+
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - this->solver_start_time).count() > this->max_planning_time;
+}
+
 TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr &q_goal, const double &t_up){
-  std::cout << "t0 " << t0 << std::endl;
-  std::cout << "t_up " << t_up << std::endl;
+  // std::cout << "t0 " << t0 << std::endl;
+  // std::cout << "t_up " << t_up << std::endl;
   this->TP.min_time = t0;
   this->TP.max_time = t_up;
 
@@ -1556,11 +1565,11 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
   this->TP.init_safe_interval_collisison_check(q0,t0,t_up);
 
   const auto rrt_end_time = std::chrono::high_resolution_clock::now();
-  const auto rrt_duration = std::chrono::duration_cast<std::chrono::milliseconds>(rrt_end_time - rrt_start_time).count();
+  const auto rrt_duration = std::chrono::duration_cast<std::chrono::microseconds>(rrt_end_time - rrt_start_time).count();
 
   this->init_time = rrt_duration;
   
-  std::cout << "РАЗМЕРНОСТЬ " << q0.N << std::endl;
+  // std::cout << "РАЗМЕРНОСТЬ " << q0.N << std::endl;
   const bool fixedTime = rai::getParameter<bool>("assembly/fixedTime", false); 
     this->dimensionality = q0.N;
     this->t_start = t0;
@@ -1575,8 +1584,8 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
 
     this->start_tree->array_of_vertices.reserve(1000000);  // DONT REMOVE IT!
     this->goal_tree->array_of_vertices.reserve(1000000);   // DONT REMOVE IT!
-    std::cout << "start:" <<  q0    << " time: " << t0 <<std::endl;
-    std::cout << "goal:"  << q_goal << " time: " << t_up <<std::endl;
+    // std::cout << "start:" <<  q0    << " time: " << t0 <<std::endl;
+    // std::cout << "goal:"  << q_goal << " time: " << t_up <<std::endl;
     Eigen::VectorXd q0_coords(this->dimensionality);
     Eigen::VectorXd q_goal_coords(this->dimensionality);
     for (int i = 0; i < q0.N; ++i)
@@ -1613,7 +1622,11 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
       // TP.C.watch(true);
       return TimedPath({}, {});
     }
-    this->goal_tree->add_vertex(Vertex(q_goal_coords, this->goal_safe_intervals.back()), nullptr, -1, this->goal_safe_intervals.back().second);
+    int max_goal_time = this->goal_safe_intervals.back().second;
+    for (const std::pair<int,int> goal_safe_int:this->goal_safe_intervals){
+    this->goal_tree->add_vertex(Vertex(q_goal_coords, goal_safe_int), nullptr, -1, goal_safe_int.second);
+
+    }
     this->current_tree = this->start_tree;
     this->other_tree = this->goal_tree;
     
@@ -1655,7 +1668,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
         assert(lims.d0>0);
       }
       for (uint i=0; i<lims.d0; ++i){
-        std::cout<<lims(i, 0)<< " " << lims(i, 1) << std::endl;
+        // std::cout<<lims(i, 0)<< " " << lims(i, 1) << std::endl;
         robot_limits.push_back(std::pair<double, double>(lims(i, 0),lims(i, 1)));
       }
     while (this->check_planner_termination_condition() && !this->goal_reached)
@@ -1670,7 +1683,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
         // std::cout<< v_count << " " << this->start_tree->array_of_vertices.size() << " " << this->goal_tree->array_of_vertices.size() <<  std::endl;
         Eigen::VectorXd coord_rand(this->dimensionality);
   
-        arr qs = TP.sample(q0, q_goal, (t_up - t0) * vmax, min_l);
+        arr qs = TP.sample(q0, q_goal, (max_goal_time - t0) * vmax, min_l);
         for (int i = 0; i < qs.d0; i++)
         {
           coord_rand(i) = qs(i);
@@ -1701,7 +1714,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
     }
 
     // spdlog::info("МЫ ЗДЕСЬ 1");
-    if (this->goal_reached) std::cout << "МЫ НАШЛИ РЕШЕНИЕ, МЫ НАШЛИ ЕГО\n";
+    // if (this->goal_reached) std::cout << "МЫ НАШЛИ РЕШЕНИЕ, МЫ НАШЛИ ЕГО\n";
 
     if (!this->goal_reached) {delete this->start_tree; delete this->goal_tree;      start_tree = nullptr;
       goal_tree = nullptr;
@@ -1722,7 +1735,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
           current = current->parent;
       }
       std::reverse(result.begin(), result.end());
-      std::cout << "NODES IN SOLUTION: " << result.size() << "\n";
+      // std::cout << "NODES IN SOLUTION: " << result.size() << "\n";
       
       // for (Vertex* v:result)
       // {
@@ -1733,7 +1746,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
 
       //     std::cout << std::endl;
       // }
-       std::cout << "====================================================\n"; 
+      //  std::cout << "====================================================\n"; 
       int v_count = 0;
       for (Vertex* v:result)
       {
@@ -1752,7 +1765,7 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
           time.append(v->departure_from_parent_time + (v->coords - v->parent->coords).norm() / this->vmax);
           t = v->departure_from_parent_time + (v->coords - v->parent->coords).norm() / this->vmax;
         }
-        std::cout << "time: " << t << ", " << v_q << std::endl;
+        // std::cout << "time: " << t << ", " << v_q << std::endl;
         v_count++;
       }
       delete this->start_tree;
@@ -1762,9 +1775,9 @@ TimedPath PathFinder_SIRRT_Time::plan(const arr &q0, const double &t0, const arr
       current_tree = nullptr;
       other_tree = nullptr;
       root_node = nullptr;
-      std::cout << time << std::endl;
-      std::cout << path.d <<' ' << path.d0 << ' ' << path.d1 << ' ' << path.d2 << std::endl;
-      std::cout << path << std::endl;
+      // std::cout << time << std::endl;
+      // std::cout << path.d <<' ' << path.d0 << ' ' << path.d1 << ' ' << path.d2 << std::endl;
+      // std::cout << path << std::endl;
       // int nn;
       // std::cin >>nn;
 

@@ -91,13 +91,14 @@ bool ConfigurationProblem::isActuated(const rai::Frame *f){
 }
 
 shared_ptr<QueryResult> ConfigurationProblem::queryUsingSplitFcl(const arr& x, const bool robot, const bool obs, const bool env){
+  assert(false);
   bool limitsRespected = true;
   constexpr double tol = 0.2;
   if(limits.N){
     for(uint i=0;i<x.N;i++){
       if(limits(i,1)>limits(i,0) && 
           (x.elem(i)<limits(i,0)*(1+tol) || x.elem(i)>limits(i,1)*(1+tol))){
-        //LOG(-1) <<"QUERY OUT OF LIMIT: joint " <<i <<": " <<x.elem(i) <<' ' <<limits[i];
+        LOG(-1) <<"QUERY OUT OF LIMIT: joint " <<i <<": " <<x.elem(i) <<' ' <<limits[i];
         limitsRespected = false;
         break;
       }
@@ -721,7 +722,36 @@ arr ConfigurationProblem::sample(const arr &start, const arr &goal, const double
   return sample;
 }
 
-std::vector<std::pair<rai::String,CollObject*>> TimedConfigurationProblem::fcl_obstacles(const rai::Configuration& C) {
+
+void TimedConfigurationProblem::get_animated_ids(){
+  this->animated_ids.clear();
+  // std::cout<<"Animated objs"<<std::endl;
+    for(int i=this->A.A.d0-1; i>=0; --i){
+    // this assumes that the newest animation part always has priority
+    const auto &a = this->A.A(i);
+    const double &start = a.start;
+
+    if (this->max_time < start || start < 0 || a.X.d0 == 0) {
+      //LOG(-1) <<"Warning: start < 0";
+      continue;
+    }
+
+    // enables us to reduce the things we have to look at if we are certain that
+    // animation parts before a certain time can be disregarded
+    if (this->min_time > start + a.X.d0){
+      continue;
+    }
+
+    for (const auto &id: a.frameIDs){
+  // std::cout<<(C.getFrames(TUP(id))(0))->name<<std::endl;
+
+      this->animated_ids.insert(id);
+    }
+  }
+
+}
+
+std::vector<std::pair<rai::String,CollObject*>> TimedConfigurationProblem::fcl_obstacles(const rai::Configuration& C,const bool only_static) {
   const arr X = C.getFrameState();
   
   std::vector<std::pair<rai::String,CollObject*>> result;
@@ -735,46 +765,71 @@ std::vector<std::pair<rai::String,CollObject*>> TimedConfigurationProblem::fcl_o
         // std::cout<<"Skipped actuated frame"<<std::endl;
         continue;
       }
-      bool cant_collide = false;
-      for (std::pair<rai::Frame*,CollObject*> &b:this->robot_link_objects){
-        // std::cout<<"robot joint name in can't  collide"<<b.first->name<<std::endl;
-        if(f->name.contains("table")){
+      // bool cant_collide = false;
+      if (this->actuated_ids.find(f->ID)!=this->actuated_ids.end()){
+        continue;
+      }
+      // for (std::pair<rai::Frame*,CollObject*> &b:this->robot_link_objects){
+    //     if(f->name.contains("table") || (f->getUpwardLink()->name.contains("World") && (f->shape->cont>0))){
+    //         break;;
+    //       }
+    //     rai::Frame* c = C.getFrames(TUP(b.first->ID))(0);
+    //     // if( (f->shape->cont<0)&&(!(c->isChildOf(f, 100)))){
+    //     //     break;
+    //     //   }
+    //     if (!(f->shape->canCollideWith(c))) {
+    //       // std::cout<<"robot joint name in can't collide"<<c->name<<" and "<<f->name<<std::endl;
+    //       // std::cout<< "f->shape->cont: "<<(int)f->shape->cont<< std::endl;
+    //       // rai::Frame* a = f->getUpwardLink();
+    //       // rai::Frame* b = c->getUpwardLink();
+    //       // std::cout<<a->name<<" "<<b->name<<std::endl;
+    //       // std::cout<< "((f->shape->.cont<0)"<<(int)(f->shape->cont) <<"(a->isChildOf(b, -f->shape->cont)) " <<(a->isChildOf(b, -f->shape->cont))<<std::endl;
+    //       // std::cout<< "(c->shape->cont<0)"<<(int)(c->shape->cont) <<"(b->isChildOf(a, -c->shape->cont)) "<<(b->isChildOf(a, -c->shape->cont)) <<std::endl;
+    //       cant_collide = true;
+    //       break;
+    //     }
+
+    //     // Skip if one of the objects is an object we move.
+    //     // Otherwise some collision with the table will be ignored.
+    //     // if (f->name.contains("obj") || c->name.contains("obj")){
+    //     //   cant_collide = true;
+    //     //   break;
+    //     // }
+
+    //     if (c == f->parent || f == c->parent) {
+    //       if (f->name.contains("table") && c->name.contains("obj")){
+    //         break;
+    //       }
+    //       // std::cout<<"c == f->parent || f == c->parent can't collide"<<c->name<<" and "<<f->name<<std::endl;
+
+    //       cant_collide = true;
+    //       break;
+    //     }
+    //     if (c == f->getUpwardLink() || f == c->getDownwardLink()) {
+    //       if (f->name.contains("table") && c->name.contains("obj")){
+    //         break;
+    //       }
+    //       // std::cout<<"c == f->getUpwardLink() || f == c->getDownwardLink() can't collide"<<c->name<<" and "<<f->name<<std::endl;
+
+    //       cant_collide = true;
+    //       break;
+    //     }
+    // }
+    // if (cant_collide){
+    //   // std::cout<<"name, that cant collide: "<<f->name<<std::endl;
+    //   continue;
+    // }
+      if(f->shape && f->shape->cont) {
+        if (only_static){
+          if (this->animated_ids.find(f->ID) != this->animated_ids.end()){
             continue;
           }
-        rai::Frame* c = C.getFrames(TUP(b.first->ID))(0);
-        if (!(f->getShape().canCollideWith(c))) {
-          // std::cout<<"robot joint name in can't collide"<<b.first->name<<" and "<<f->name<<std::endl;
-          cant_collide = true;
-          break;
         }
-
-        // Skip if one of the objects is an object we move.
-        // Otherwise some collision with the table will be ignored.
-        // if (f->name.contains("obj") || c->name.contains("obj")){
-        //   cant_collide = true;
-        //   break;
-        // }
-
-        if (c == f->parent || f == c->parent) {
-          if (f->name.contains("table") && c->name.contains("obj")){
-            break;
+        else{
+          if (this->animated_ids.find(f->ID) == this->animated_ids.end()){
+            continue;
           }
-          cant_collide = true;
-          break;
         }
-        if (c == f->getUpwardLink() || f == c->getDownwardLink()) {
-          if (f->name.contains("table") && c->name.contains("obj")){
-            break;
-          }
-          cant_collide = true;
-          break;
-        }
-    }
-    if (cant_collide){
-      // std::cout<<"name, that cant collide: "<<f->name<<std::endl;
-      continue;
-    }
-      if(f->shape && f->shape->cont) {
         if(!f->shape->mesh().V.N) f->shape->createMeshes();
 
         frs.push_back(f);
@@ -826,12 +881,12 @@ std::vector<std::pair<rai::String,CollObject*>> TimedConfigurationProblem::fcl_o
 
 std::vector<std::pair<rai::Frame*,CollObject*>> TimedConfigurationProblem::fcl_robots(const rai::Configuration& C) {
   const arr X = C.getFrameState();
-  
+  this->robot_base_links_offset = 0;
   std::vector<std::pair<rai::Frame*,CollObject*>> result;
     std::vector<rai::Shape*> geometries;
     std::vector<uint> geometries_id;
     std::vector<rai::Frame*> frs;
-
+  this->actuated_ids.clear();
 
     for(rai::Frame* f:C.frames) {
       if(!isActuated(f)){
@@ -850,9 +905,47 @@ std::vector<std::pair<rai::Frame*,CollObject*>> TimedConfigurationProblem::fcl_r
         geometries.push_back(f->shape);
         geometries_id.push_back(f->ID);
         frs.push_back(f);
+        this->actuated_ids.insert(f->ID);
       }
     }
 
+    //We need to add base links, that are not actuated.
+    std::set<std::string> robot_prefixes;
+
+    int actuated_frames_count = frs.size();
+    for (int joint_id=0; joint_id< actuated_frames_count; joint_id++){
+      rai::Frame* current_frame = frs[joint_id];
+      if (current_frame->name(2)!='_'){
+        continue;
+      }
+      if (!(robot_prefixes.find(std::string(current_frame->name.getFirstN(3).p)) != robot_prefixes.end())){
+        robot_prefixes.insert(std::string(current_frame->name.getFirstN(3).p));
+        // std::cout<<"prefix: "<<current_frame->name.getFirstN(3)<<std::endl;
+      }
+    }
+    for(rai::Frame* potencial_link:C.frames){
+      // std::cout<<"checking: "<<potencial_link->name<<std::endl;
+
+      if (potencial_link->name(2)!='_'){
+        continue;
+      }
+      if(!(robot_prefixes.find(std::string(potencial_link->name.getFirstN(3).p)) != robot_prefixes.end())){
+        continue;
+      }
+       if (!(this->actuated_ids.find(potencial_link->ID) != this->actuated_ids.end())){
+          if(potencial_link->shape && potencial_link->shape->cont) {
+            // std::cout<<"additional robot joint name "<<potencial_link->name<<std::endl;
+            this->robot_base_links_offset+=1;
+            if(!potencial_link->shape->mesh().V.N) potencial_link->shape->createMeshes();
+            geometries.push_back(potencial_link->shape);
+            geometries_id.push_back(potencial_link->ID);
+            frs.push_back(potencial_link);
+            this->actuated_ids.insert(potencial_link->ID);
+          }
+      }
+    }
+      
+    
     for(long int i=0; i<geometries.size(); i++) {
       rai::Shape* shape = geometries[i];
   
@@ -952,6 +1045,10 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
   //destructor
   if(collision_manager_was_initialised){
     // std::cout<<"destructor"<<std::endl;
+    for(int col_id =0; col_id<this->static_collision_objects.size();col_id++){
+      delete (std::pair<double*,rai::String>*) (this->static_collision_objects[col_id]->getUserData());
+      delete this->static_collision_objects[col_id];
+    }
     for(int col_id =0; col_id<this->collision_objects.size();col_id++){
       delete (std::pair<double*,rai::String>*) (this->collision_objects[col_id]->getUserData());
       delete this->collision_objects[col_id];
@@ -967,12 +1064,15 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
     
   }
   this->time_marks.clear();
+  this->static_collision_objects.clear();
   this->collision_objects.clear();
   this->robot_link_objects.clear();
   this->safe_interval_collision_manager.clear();
+  this->static_collision_manager.clear();
 
   C.setJointState(start);//set joint pos
    // get robot links collision objects
+   
    this->robot_link_objects = this->fcl_robots(this->C);
 
   uint number_of_frames = this->max_time-this->min_time+1;
@@ -1007,11 +1107,31 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
   //   }
   // }
   
+    this->get_animated_ids();
+    ConfigurationProblem conf = this->getConfigurationProblemAtTime(this->min_time);
+    std::vector<std::pair<rai::String,CollObject*>> static_obstacles =  this->fcl_obstacles(conf.C,true);
+    // std::cout<<"obstacles "<<obstacles.size()<<std::endl;
+    this->time_marks.push_back(new double(-42));
+    // std::cout<<"static Obstacles"<<std::endl;
+    for (int col_id=0;col_id<static_obstacles.size();col_id++){  
+      // std::cout<<static_obstacles[col_id].first<<std::endl;
+      this->static_collision_objects.push_back(static_obstacles[col_id].second);
+      this->static_collision_objects.back()->setUserData((void*)(new std::pair<double*,rai::String>(this->time_marks.back(),static_obstacles[col_id].first)));
+      this->static_collision_objects.back()->computeAABB();
+    }
 
+  this->static_collision_manager.registerObjects(this->static_collision_objects);
+  this->static_collision_manager.setup();
   
-  for (int frame_number=0;frame_number<number_of_frames;frame_number++){
+//   std::cout<<"non-static Obstacles"<<std::endl;
+//   std::vector<std::pair<rai::String,CollObject*>> szz_obstacles =  this->fcl_obstacles(conf.C,false);
+// for (int col_id=0;col_id<szz_obstacles.size();col_id++){  
+//       std::cout<<szz_obstacles[col_id].first<<std::endl;
+//     }
+
+  for (int frame_number=0;frame_number<=number_of_frames;frame_number++){
     ConfigurationProblem conf = this->getConfigurationProblemAtTime(this->min_time+frame_number);
-    std::vector<std::pair<rai::String,CollObject*>> obstacles =  this->fcl_obstacles(conf.C);
+    std::vector<std::pair<rai::String,CollObject*>> obstacles =  this->fcl_obstacles(conf.C,false);
     // for( auto obs:obstacles){
     //     std::cout<<"name, to be added to fcl "<<obs.first<<std::endl;
     //     // std::cout<<obs.second->getTranslation()<<std::endl;
@@ -1024,15 +1144,17 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
       // if(!obstacles[col_id].second){
       //   // std::cout<<"obstacles NULLPTR DETECTED! "<<col_id<<std::endl;
       // }
+      // std::cout<<obstacles[col_id].first<<std::endl;
       this->collision_objects.push_back(obstacles[col_id].second);
       this->collision_objects.back()->setUserData((void*)(new std::pair<double*,rai::String>(this->time_marks.back(),obstacles[col_id].first)));
       this->collision_objects.back()->computeAABB();
     }
   }
+  
   for (int frame_number=0;frame_number<this->collision_objects.size();frame_number++){
-    // if(!collision_objects[frame_number]){
-    //   // std::cout<<"NULLPTR DETECTED! "<<number_of_frames<<std::endl;
-    // }
+    if(!collision_objects[frame_number]){
+      std::cout<<"NULLPTR DETECTED! "<<number_of_frames<<std::endl;
+    }
   }
   this->safe_interval_collision_manager.registerObjects(this->collision_objects);
   this->safe_interval_collision_manager.setup();
@@ -1259,12 +1381,19 @@ void TimedConfigurationProblem::init_safe_interval_collisison_check(const arr &s
   // file.close();
   
   // std::cout << "Exported FCL scene to fcl_export/scene.json" << std::endl;
+  // std::cout<<"ZZZZ"<<std::endl;
 }
 
 std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_intervals(const arr& x){
+  // std::cout<<"Enter safe intervals"<<std::endl;
   std::vector<std::pair<double,double>> results;
-  
+  // if (!this->query(x,-1)->isFeasible)
+  // {
+  //   std::cout<<"Collision static"<<std::endl;
+  //   return results;
+  // }
   C.setJointState(x);//set joint pos
+  
   
   // // Export current scene state to JSON - using the same format as init_safe_interval_collisison_check
   // rapidjson::Document document;
@@ -1535,10 +1664,10 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
   //   return results;
   // }
   //update robot link objects pos
-
+  
   // assert(C.activeJoints.N == this->robot_link_objects.size());
     // std::cout<<"Robot joint pos"<<std::endl;
-
+  
   for(int joint_id=0;joint_id<this->robot_link_objects.size();joint_id++){
     // std::cout<<Vec3f(this->robot_link_objects[joint_id].first->X.pos.x, this->robot_link_objects[joint_id].first->X.pos.y,this->robot_link_objects[joint_id].first->X.pos.z)<<std::endl;
     this->robot_link_objects[joint_id].first->ensure_X();
@@ -1546,6 +1675,20 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
     this->robot_link_objects[joint_id].second->setQuatRotation(Quaternionf(this->robot_link_objects[joint_id].first->X.rot.w,this->robot_link_objects[joint_id].first->X.rot.x,this->robot_link_objects[joint_id].first->X.rot.y,this->robot_link_objects[joint_id].first->X.rot.z));
     this->robot_link_objects[joint_id].second->computeAABB();
   }
+
+  // std::cout<<"check static safe intervals"<<std::endl;
+
+  this->static_collided = false;
+  for (int robot_joint_id = 0; robot_joint_id < this->robot_link_objects.size()-this->robot_base_links_offset; robot_joint_id++)
+  {
+      this->static_collision_manager.collide(this->robot_link_objects[robot_joint_id].second, this, this->staticCallback);
+      if(this->static_collided){
+  // std::cout<<"static collided"<<std::endl;
+
+        return results;
+      }
+  }
+  // std::cout<<"no static"<<std::endl;
 
   // check for the selfcollision
   for (int robot_joint_id = 0; robot_joint_id < this->robot_link_objects.size(); robot_joint_id++)
@@ -1558,6 +1701,8 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
       CollisionRequest request;
       CollisionResult result;
       fcl::collide(this->robot_link_objects[robot_joint_id].second, this->robot_link_objects[another_robot_joint_id].second, request, result);
+        // std::cout<<"check "<<this->robot_link_objects[robot_joint_id].first->name<<" and "<<this->robot_link_objects[another_robot_joint_id].first->name<<std::endl;
+      
       if (result.isCollision())
       {
         // std::cout<<"Collision between "<<this->robot_link_objects[robot_joint_id].first->name<<" and "<<this->robot_link_objects[another_robot_joint_id].first->name<<std::endl;
@@ -1569,11 +1714,13 @@ std::vector<std::pair<double,double>> TimedConfigurationProblem::get_safe_interv
 
   //collide
   this->collision_moments.clear();
-  
-  for (int robot_joint_id = 0; robot_joint_id < this->robot_link_objects.size(); robot_joint_id++)
-  {
-      this->safe_interval_collision_manager.collide(this->robot_link_objects[robot_joint_id].second, this, this->BroadphaseCallback);
+  if(this->collision_objects.size()!=0){
+    for (int robot_joint_id = 0; robot_joint_id < this->robot_link_objects.size()-this->robot_base_links_offset; robot_joint_id++)
+    {
+        this->safe_interval_collision_manager.collide(this->robot_link_objects[robot_joint_id].second, this, this->BroadphaseCallback);
+    }
   }
+  
     // for (const int collision_frame : collision_moments)
     // {
     //   std::cout<< "Collision_frame "<<collision_frame<<std::endl;
@@ -1635,6 +1782,35 @@ bool TimedConfigurationProblem::BroadphaseCallback(CollObject* o1, CollObject* o
     // fcl::distance(o1, o2, requestd, resultd);
     // std::cout<<"Distance: "<<resultd.min_distance<<std::endl;
     self->collision_moments.push_back(d3);
+
+
+    
+  }
+
+  return false;
+}
+
+bool TimedConfigurationProblem::staticCallback(CollObject* o1, CollObject* o2, void* cdata_) {
+  TimedConfigurationProblem* self = static_cast<TimedConfigurationProblem*>(cdata_);
+
+
+  CollisionRequest request;
+  CollisionResult result;
+  fcl::collide(o1, o2, request, result);
+  if(result.isCollision()) {
+    self->static_collided = true;
+
+
+    // std::cout<<"Collision between"<<std::endl;
+    // std::cout<<((std::pair<double*,rai::String>*)(o1->getUserData()))->second<<" "<<d1<<std::endl;
+    // std::cout<<((std::pair<double*,rai::Frame*>*)(o2->getUserData()))->second->name<<" "<<d2<<std::endl;
+    
+    
+    return true;
+    // fcl::DistanceRequest<float> requestd;
+    // fcl::DistanceResult<float> resultd;
+    // fcl::distance(o1, o2, requestd, resultd);
+    // std::cout<<"Distance: "<<resultd.min_distance<<std::endl;
 
 
     

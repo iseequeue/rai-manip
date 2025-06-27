@@ -94,7 +94,9 @@ struct ConfigurationProblem {
 struct TimedConfigurationProblem : ConfigurationProblem{
   rai::Animation A;
   fcl::DynamicAABBTreeCollisionManager<float> safe_interval_collision_manager;
+  fcl::DynamicAABBTreeCollisionManager<float> static_collision_manager;
   std::vector<fcl::CollisionObject<float>*> collision_objects;
+  std::vector<fcl::CollisionObject<float>*> static_collision_objects;
   std::vector<std::pair<rai::Frame*,CollObject*>> robot_link_objects;
   std::vector<double*> time_marks;
   double min_time;
@@ -102,9 +104,10 @@ struct TimedConfigurationProblem : ConfigurationProblem{
   bool collision_manager_was_initialised = false;
   void init_safe_interval_collisison_check(const arr &start, const double& t_start, const double& t_max);
   std::pair<rai::String,CollObject*> create_obstacle_fcl(const rai::Frame* frame);
-  std::vector<std::pair<rai::String,CollObject*>> fcl_obstacles(const rai::Configuration& C);
+  std::vector<std::pair<rai::String,CollObject*>> fcl_obstacles(const rai::Configuration& C, const bool only_static);
   std::vector<std::pair<rai::Frame*,CollObject*>> fcl_robots(const rai::Configuration& C);
   static bool BroadphaseCallback(CollObject* o1, CollObject* o2, void* cdata_);
+  static bool staticCallback(CollObject* o1, CollObject* o2, void* cdata_);
   std::vector<double> collision_moments;
   TimedConfigurationProblem(const rai::Configuration& _C, const rai::Animation &_A);
   ConfigurationProblem getConfigurationProblemAtTime(const double t);
@@ -114,6 +117,12 @@ struct TimedConfigurationProblem : ConfigurationProblem{
   std::vector<std::pair<double,double>> get_safe_intervals(const arr& x);
   bool checkEdge(const arr& x0, const double t0, const arr &x1, const double t1, const uint discretization=3);
   arr sample(const arr &start={}, const arr &goal={}, const double c_max=0, const double c_min=0);
+
+  void get_animated_ids();
+  std::set<int> animated_ids;
+  std::set<uint> actuated_ids;
+  bool static_collided = false;
+  int robot_base_links_offset = 0;
 };
 
 struct GoalStateProblem : MathematicalProgram {

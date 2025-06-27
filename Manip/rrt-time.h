@@ -426,6 +426,10 @@ struct PathFinder_RRT_Time{
   arr getDelta(const arr &p1, const arr &p2);
   Node* steer(const Node &start, const Node &goal, bool reverse);
 
+  bool check_planner_termination_condition() const;
+  float max_planning_time = 5; //in seconds
+  std::chrono::time_point<std::chrono::steady_clock> solver_start_time;
+
   TimedPath extractPath(Tree* t1, Tree* t2, Node* leafNode1, Node* leafNode2){
     //std::cout << "cost: " << leafNode1->cost + leafNode2->cost << std::endl;
 
@@ -588,10 +592,10 @@ struct PathFinder_SIRRT_Time{
   double planner_range = 1.0;
 
   bool stop_when_path_found = true;  
-  float max_planning_time = 15; //in seconds
+  float max_planning_time = 5; //in seconds
 
-  double init_time = 0.0;
-  double get_init_time(){return init_time;}
+  long long init_time = 0;
+  long long get_init_time(){return init_time;}
 
   //==============================================================
   // На каждом плане свои

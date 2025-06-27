@@ -13,11 +13,11 @@ struct TimedPath{
   TimedPath(const arr &_path, const arr &_time): path(_path), time(_time){};
 
   arr resample(const arr &times, rai::Configuration &C){
-    auto periodicDimensions = std::vector<bool>(C.getJointState().N, true); // changed by us
+    auto periodicDimensions = std::vector<bool>(C.getJointState().N, false); // changed by us
 
     for (auto *j: C.activeJoints){
       if (j->type == rai::JT_hingeX || j->type == rai::JT_hingeY|| j->type == rai::JT_hingeZ){
-        periodicDimensions[j->qIndex] = true;// Real robots cant be periodic. CHANGED BY US , originally true
+        periodicDimensions[j->qIndex] = false;// Real robots cant be periodic. CHANGED BY US , originally true
       }
     }
     
@@ -32,15 +32,15 @@ struct TimedPath{
 
   arr getPos(const double t, rai::Configuration &C, const std::vector<bool> &periodicDimensions){
     if (t <= time(0)){
-      std::cout<<"t <= time(0)"<<std::endl;
-      std::cout<<"t: "<<t<<std::endl;
-      std::cout<<"time(0): "<<time(0)<<std::endl;
+      // std::cout<<"t <= time(0)"<<std::endl;
+      // std::cout<<"t: "<<t<<std::endl;
+      // std::cout<<"time(0): "<<time(0)<<std::endl;
       return path[0];
     }
     if (t >= time(time.d0-1)){
-      std::cout<<"t >= time(time.d0-1)"<<std::endl;
-      std::cout<<"t: "<<t<<std::endl;
-      std::cout<<"time(time.d0-1): "<<time(time.d0-1)<<std::endl;
+      // std::cout<<"t >= time(time.d0-1)"<<std::endl;
+      // std::cout<<"t: "<<t<<std::endl;
+      // std::cout<<"time(time.d0-1): "<<time(time.d0-1)<<std::endl;
       return path[time.d0-1];
     }
 
