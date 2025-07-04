@@ -116,6 +116,8 @@ struct TimedConfigurationProblem : ConfigurationProblem{
   ptr<QueryResult> query(const arr& x, const std::vector<double> times, const double tMin=0);
   std::vector<std::pair<double,double>> get_safe_intervals(const arr& x);
   bool checkEdge(const arr& x0, const double t0, const arr &x1, const double t1, const uint discretization=3);
+  bool checkEdgeStatic(const arr& x0, const arr &x1);
+  arr steer_to_obstacle(const arr& x0, const arr &x1);
   arr sample(const arr &start={}, const arr &goal={}, const double c_max=0, const double c_min=0);
 
   void get_animated_ids();

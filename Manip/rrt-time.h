@@ -542,6 +542,18 @@ struct PathFinder_SIRRT_Time{
     return !TP.checkEdge(start_q, start_time, end_q, end_time); // 3 вообще ни на что не влияет
   }
 
+  bool is_collision_motion_with_static(const Eigen::VectorXd &start_coords, const Eigen::VectorXd &end_coords)
+  {
+    arr start_q(start_coords.size());
+    arr end_q(start_coords.size());
+    for (int i=0; i<start_coords.size(); i++)
+    {
+      start_q(i) = start_coords(i);
+      end_q(i) = end_coords(i);
+    }
+    return !TP.checkEdgeStatic(start_q, end_q); 
+  }
+
   Vertex *get_nearest_node(const Eigen::VectorXd &coords)
   {
     const size_t num_results = 1;
@@ -589,7 +601,7 @@ struct PathFinder_SIRRT_Time{
   double dt = 1; // HARDCODE!, fps analog. DO NOT CHANGE. 1 fps due to Animation implementation.
   double vmax = 0.1;
   double goal_bias = 0.4;
-  double planner_range = 1.0;
+  double planner_range = 0.5;
 
   bool stop_when_path_found = true;  
   float max_planning_time = 5; //in seconds
